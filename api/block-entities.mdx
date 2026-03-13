@@ -1,0 +1,684 @@
+---
+title: 'Block Entity Classes'
+description: 'Documentation for TVBlockEntity and ViewFinderBlockEntity implementations'
+icon: 'database'
+---
+
+## TVBlockEntity
+
+The `TVBlockEntity` class manages the state and behavior of television blocks, including cassette playback, video rendering, and enderman interaction.
+
+### Class Definition
+
+```java
+package net.mehvahdjukaar.vista.common.tv;
+
+public class TVBlockEntity extends ItemDisplayTile
+```
+
+**Location:** `net.mehvahdjukaar.vista.common.tv.TVBlockEntity`  
+**Parent Class:** `ItemDisplayTile` (Moonlight Lib)
+
+### Fields
+
+<ParamField path="paused" type="boolean" private>
+  Whether the video playback is currently paused.
+</ParamField>
+
+<ParamField path="videoPlaybackTicks" type="int" private>
+  The current playback position in ticks (20 ticks = 1 second).
+</ParamField>
+
+<ParamField path="connectedTvsAmount" type="int" private>
+  The width (in blocks) of the connected TV grid. Minimum value is 1.
+</ParamField>
+
+<ParamField path="videoSource" type="IVideoSource" private>
+  Client-side video source for rendering. Set to `IVideoSource.EMPTY` when no cassette is inserted.
+</ParamField>
+
+<ParamField path="observationController" type="TVEndermanObservationController" private>
+  Server-side controller for enderman observation logic. Null if not broadcasting a viewfinder feed.
+</ParamField>
+
+<ParamField path="fadeAnimation" type="IntAnimationState" public>
+  Animation controller for the screen fade-in/fade-out effect.
+  
+  Duration: 3 ticks fade-in, 9 ticks fade-out
+</ParamField>
+
+<ParamField path="endermanAnimation" type="IntAnimationState" public>
+  Animation controller for the enderman static effect when looking at endermen through the TV.
+  
+  Duration: 20 ticks fade-in, 20 ticks fade-out, 0.6 intensity
+</ParamField>
+
+### Constructor
+
+```java
+public TVBlockEntity(BlockPos pos, BlockState state)
+```
+
+Creates a new TV block entity at the specified position.
+
+### Key Methods
+
+#### onTick (Static Ticker)
+
+```java
+public static void onTick(
+    Level world, 
+    BlockPos pos, 
+    BlockState state, 
+    TVBlockEntity tv
+)
+```
+
+The main tick method called every game tick. Handles:
+- Video playback progression
+- Animation updates (fade, enderman static)
+- Sound playback loops
+- Enderman observation checks (server-side)
+
+<ParamField path="world" type="Level">
+  The world/level containing the TV.
+</ParamField>
+
+<ParamField path="pos" type="BlockPos">
+  The TV's block position.
+</ParamField>
+
+<ParamField path="state" type="BlockState">
+  The TV's current block state.
+</ParamField>
+
+<ParamField path="tv" type="TVBlockEntity">
+  The TV block entity instance.
+</ParamField>
+
+<Expandable title="Tick Logic Details">
+  **Client-side behavior:**
+  - Increments fade animation when powered
+  - Plays video sound in a loop based on video duration
+  - Updates enderman static animation
+  - Resets playback when unpowered
+  
+  **Server-side behavior:**
+  - Staggered updates (every 27 ticks) for performance
+  - Checks if endermen are visible through viewfinder feeds
+  - Sends block events to sync enderman state to clients
+  - Manages the observation controller lifecycle
+</Expandable>
+
+#### interactWithPlayerItem
+
+```java
+public ItemInteractionResult interactWithPlayerItem(
+    Player player, 
+    InteractionHand handIn, 
+    ItemStack stack, 
+    int slot, 
+    BlockHitResult hit
+)
+```
+
+Handles all player interactions with the TV:
+
+1. **Pause Toggle**: Shift-right-click while powered with a cassette to pause/unpause
+2. **Cassette Ejection**: Right-click with empty hand or another cassette to eject current cassette
+3. **Cassette Insertion**: Right-click with a valid cassette item to insert it
+4. **Advancement**: Triggers "Absolute Cinema" advancement when inserting into 3x3+ TV
+
+<ParamField path="player" type="Player">
+  The player interacting with the TV.
+</ParamField>
+
+<ParamField path="handIn" type="InteractionHand">
+  The hand used for interaction.
+</ParamField>
+
+<ParamField path="stack" type="ItemStack">
+  The item in the player's hand.
+</ParamField>
+
+<ParamField path="hit" type="BlockHitResult">
+  The ray trace result for the interaction.
+</ParamField>
+
+<ResponseField name="Returns" type="ItemInteractionResult">
+  - SUCCESS: Interaction handled
+  - PASS_TO_DEFAULT_BLOCK_INTERACTION: Fall through to default behavior
+</ResponseField>
+
+#### getVideoSource
+
+```java
+public IVideoSource getVideoSource()
+```
+
+Returns the current video source being displayed on the TV.
+
+<ResponseField name="Returns" type="IVideoSource">
+  The active video source, or `IVideoSource.EMPTY` if no cassette is inserted.
+</ResponseField>
+
+#### getPlaybackTicks
+
+```java
+public int getPlaybackTicks()
+```
+
+Returns the current playback position in ticks.
+
+<ResponseField name="Returns" type="int">
+  Playback position (20 ticks = 1 second). Resets when TV is unpowered.
+</ResponseField>
+
+#### isPaused
+
+```java
+public boolean isPaused()
+```
+
+Checks if video playback is currently paused.
+
+<ResponseField name="Returns" type="boolean">
+  True if paused, false if playing or no cassette inserted.
+</ResponseField>
+
+#### setConnectionSize
+
+```java
+public void setConnectionSize(int width)
+```
+
+Sets the width of the connected TV grid. Called automatically by the TV connection system.
+
+<ParamField path="width" type="int">
+  The width in blocks (1 for single TV, 2-9 for multi-TV setups).
+</ParamField>
+
+#### getConnectedCount
+
+```java
+public int getConnectedCount()
+```
+
+Returns the width of the connected TV grid.
+
+<ResponseField name="Returns" type="int">
+  Number of connected TVs horizontally (minimum 1).
+</ResponseField>
+
+#### getScreenPixelWidth / getScreenPixelHeight
+
+```java
+public int getScreenPixelWidth()
+public int getScreenPixelHeight()
+```
+
+Calculates the screen resolution in pixels based on the connected TV grid size.
+
+<ResponseField name="Returns" type="int">
+  Screen dimension in pixels. Formula: `(connectedTvsAmount * 16) - 4`
+  
+  Examples:
+  - 1x1 TV: 12x12 pixels
+  - 2x2 TV: 28x28 pixels  
+  - 3x3 TV: 44x44 pixels
+</ResponseField>
+
+#### getComparatorOutput
+
+```java
+public int getComparatorOutput()
+```
+
+Returns the redstone comparator output signal.
+
+<ResponseField name="Returns" type="int">
+  Signal strength (0-15) from the inserted cassette's `getAnalogSignalStrength` method, or 0 if empty.
+</ResponseField>
+
+#### isScreenOn
+
+```java
+public boolean isScreenOn(float partialTicks)
+```
+
+Checks if the screen should be rendering (accounts for fade animations).
+
+<ParamField path="partialTicks" type="float">
+  Partial tick time for smooth animations.
+</ParamField>
+
+<ResponseField name="Returns" type="boolean">
+  True if the screen is on or fading out.
+</ResponseField>
+
+#### canPlaceItem
+
+```java
+public boolean canPlaceItem(int index, ItemStack stack)
+```
+
+Validates if an item can be inserted into the TV.
+
+<ResponseField name="Returns" type="boolean">
+  True if the item implements `ITvCassette`, false otherwise.
+</ResponseField>
+
+### NBT Data
+
+The TV block entity saves the following data:
+
+```java
+compound.putInt("ConnectionWidth", connectedTvsAmount);
+compound.putBoolean("Paused", paused);
+compound.putInt("VideoPlaybackTicks", videoPlaybackTicks);
+```
+
+### Constants
+
+<ParamField path="MIN_SCREEN_PIXEL_SIZE" type="int" static>
+  Minimum screen size in pixels: 12 (16 - 4 pixel border)
+</ParamField>
+
+### Example Usage
+
+```java
+import net.mehvahdjukaar.vista.common.tv.TVBlockEntity;
+import net.minecraft.core.BlockPos;
+import net.minecraft.world.level.Level;
+
+public class TVController {
+    public void pauseTV(Level level, BlockPos pos) {
+        if (level.getBlockEntity(pos) instanceof TVBlockEntity tv) {
+            // Pause/unpause the TV
+            boolean wasPaused = tv.isPaused();
+            // Note: Pausing is typically done through player interaction
+            // Direct field access requires reflection or custom methods
+        }
+    }
+    
+    public void getPlaybackInfo(Level level, BlockPos pos) {
+        if (level.getBlockEntity(pos) instanceof TVBlockEntity tv) {
+            int ticks = tv.getPlaybackTicks();
+            int seconds = ticks / 20;
+            int gridSize = tv.getConnectedCount();
+            boolean paused = tv.isPaused();
+            
+            System.out.println("Playback: " + seconds + "s, Grid: " + 
+                gridSize + "x" + gridSize + ", Paused: " + paused);
+        }
+    }
+}
+```
+
+---
+
+## ViewFinderBlockEntity
+
+The `ViewFinderBlockEntity` class manages viewfinder camera blocks, including position/orientation, zoom level, and video broadcasting.
+
+### Class Definition
+
+```java
+package net.mehvahdjukaar.vista.common.view_finder;
+
+public class ViewFinderBlockEntity extends ItemDisplayTile 
+    implements IOneUserInteractable, IBroadcastSource
+```
+
+**Location:** `net.mehvahdjukaar.vista.common.view_finder.ViewFinderBlockEntity`  
+**Parent Class:** `ItemDisplayTile` (Moonlight Lib)  
+**Interfaces:** `IOneUserInteractable`, `IBroadcastSource`
+
+### Fields
+
+<ParamField path="myUUID" type="UUID" private>
+  Unique identifier for this viewfinder's broadcast feed.
+</ParamField>
+
+<ParamField path="pitch" type="float" private>
+  Current camera pitch in degrees (-90 to 90, where -90 is up, 90 is down).
+</ParamField>
+
+<ParamField path="yaw" type="float" private>
+  Current camera yaw in degrees (0-360, where 0 is north).
+</ParamField>
+
+<ParamField path="prevPitch" type="float" private>
+  Previous tick's pitch value for smooth interpolation.
+</ParamField>
+
+<ParamField path="prevYaw" type="float" private>
+  Previous tick's yaw value for smooth interpolation.
+</ParamField>
+
+<ParamField path="zoom" type="int" private>
+  Zoom level (1 to MAX_ZOOM). Higher values = more zoomed in.
+</ParamField>
+
+<ParamField path="locked" type="boolean" private>
+  Whether the camera is locked from rotation.
+</ParamField>
+
+<ParamField path="controllingPlayer" type="UUID" private>
+  UUID of the player currently controlling this viewfinder. Not saved to NBT.
+</ParamField>
+
+<ParamField path="videoSource" type="LiveFeedVideoSource" private>
+  The video source providing the live camera feed.
+</ParamField>
+
+<ParamField path="selfAccess" type="ViewFinderAccess" public>
+  Access helper for managing rotation constraints.
+</ParamField>
+
+### Constants
+
+<ParamField path="MAX_ZOOM" type="int" static>
+  Maximum zoom level: 44
+</ParamField>
+
+<ParamField path="NEAR_PLANE" type="float" static>
+  Near clipping plane distance: 0.05
+</ParamField>
+
+### Constructor
+
+```java
+public ViewFinderBlockEntity(BlockPos pos, BlockState state)
+```
+
+Creates a new viewfinder block entity with a random UUID and default camera settings.
+
+### Key Methods
+
+#### tick (Static Ticker)
+
+```java
+public static void tick(
+    Level level, 
+    BlockPos pos, 
+    BlockState state, 
+    ViewFinderBlockEntity tile
+)
+```
+
+Simple ticker that updates interpolation values:
+
+```java
+tile.prevYaw = tile.yaw;
+tile.prevPitch = tile.pitch;
+```
+
+#### tryInteracting
+
+```java
+public ItemInteractionResult tryInteracting(
+    Player player, 
+    InteractionHand hand, 
+    ItemStack stack,
+    BlockPos pos
+)
+```
+
+Handles player interaction:
+1. If sneaking or viewfinder is empty, tries to insert/remove items
+2. Otherwise, opens the viewfinder control GUI
+
+<ParamField path="player" type="Player">
+  The player interacting with the viewfinder.
+</ParamField>
+
+<ResponseField name="Returns" type="ItemInteractionResult">
+  Always returns SUCCESS to prevent further interaction processing.
+</ResponseField>
+
+#### getUUID
+
+```java
+public UUID getUUID()
+```
+
+Returns the unique broadcast identifier for this viewfinder.
+
+<ResponseField name="Returns" type="UUID">
+  The broadcast feed UUID. This UUID is used by TVs to subscribe to this viewfinder's feed.
+</ResponseField>
+
+#### getYaw / getPitch
+
+```java
+public float getYaw(float partialTicks)
+public float getPitch(float partialTicks)
+public float getYaw()
+public float getPitch()
+```
+
+Returns the camera orientation:
+- **Interpolated versions**: Use `partialTicks` for smooth rendering
+- **Direct versions**: Return current tick values
+
+<ParamField path="partialTicks" type="float">
+  Sub-tick interpolation value (0.0 to 1.0).
+</ParamField>
+
+<ResponseField name="Returns" type="float">
+  Angle in degrees.
+</ResponseField>
+
+#### setYaw / setPitch
+
+```java
+public void setYaw(ViewFinderAccess access, float relativeYaw)
+public void setPitch(ViewFinderAccess access, float relativePitch)
+```
+
+Sets the camera orientation with constraint clamping.
+
+<ParamField path="access" type="ViewFinderAccess">
+  Access context that provides rotation constraints.
+</ParamField>
+
+<ParamField path="relativeYaw" type="float">
+  Target yaw in degrees (will be clamped to constraints).
+</ParamField>
+
+<ParamField path="relativePitch" type="float">
+  Target pitch in degrees (will be clamped to constraints).
+</ParamField>
+
+<Note>
+  Constraints are determined by the viewfinder's mounting orientation and prevent impossible rotations.
+</Note>
+
+#### setAttributes
+
+```java
+public void setAttributes(
+    float yaw, 
+    float pitch, 
+    int zoom, 
+    boolean locked,
+    Player controllingPlayer, 
+    ViewFinderAccess access
+)
+```
+
+Bulk update method for all viewfinder attributes. Used when receiving updates from the control GUI.
+
+#### getZoomLevel / setZoomLevel
+
+```java
+public int getZoomLevel()
+public void setZoomLevel(int zoom)
+```
+
+Gets or sets the current zoom level (1 to MAX_ZOOM).
+
+#### isLocked / setLocked
+
+```java
+public boolean isLocked()
+public void setLocked(boolean locked)
+```
+
+Gets or sets the lock state. When locked, the camera cannot be rotated.
+
+#### getFOV / getFOVModifier
+
+```java
+public float getFOV()
+public float getFOVModifier()
+```
+
+Calculates the field of view based on zoom level:
+
+<ResponseField name="getFOV" type="float">
+  Returns the absolute FOV in degrees. Base FOV (70°) multiplied by the FOV modifier.
+</ResponseField>
+
+<ResponseField name="getFOVModifier" type="float">
+  Returns a zoom multiplier (0.02 to 1.0) based on the current zoom level. Uses easing for smooth zoom.
+</ResponseField>
+
+```java
+float spyglassZoom = 0.1f;
+float maxZoom = spyglassZoom / 5; // 0.02
+float normalizedZoom = (zoomLevel - 1f) / (MAX_ZOOM - 1f);
+normalizedZoom = 1 - ((1 - normalizedZoom) * (1 - normalizedZoom)); // Easing
+return Mth.lerp(normalizedZoom, 1, maxZoom);
+```
+
+#### getNormalizedZoomFactor
+
+```java
+public float getNormalizedZoomFactor()
+```
+
+Returns zoom as a normalized value (0.0 to 1.0) with easing applied.
+
+<ResponseField name="Returns" type="float">
+  Normalized zoom factor (0.0 = min zoom, 1.0 = max zoom).
+</ResponseField>
+
+#### getBroadcastVideo
+
+```java
+public IVideoSource getBroadcastVideo()
+```
+
+Implementation of `IBroadcastSource` interface.
+
+<ResponseField name="Returns" type="IVideoSource">
+  The live feed video source for this viewfinder.
+</ResponseField>
+
+#### canPlaceItem
+
+```java
+public boolean canPlaceItem(int index, ItemStack stack)
+```
+
+Validates items that can be inserted into the viewfinder:
+- Stained glass panes (for tinting)
+- Supplementaries shader items (if installed)
+
+<ResponseField name="Returns" type="boolean">
+  True if the item can be inserted.
+</ResponseField>
+
+### NBT Data
+
+The viewfinder saves:
+
+```java
+tag.putUUID("UUID", myUUID);
+tag.putFloat("yaw", yaw);
+tag.putFloat("pitch", pitch);
+tag.putBoolean("locked", locked);
+tag.putInt("zoom", zoom);
+```
+
+### Broadcast Registration
+
+The viewfinder automatically registers itself with the BroadcastManager:
+
+```java
+@Override
+public void setLevel(Level level) {
+    super.setLevel(level);
+    this.ensureLinked(level, LevelBELocation.of(this));
+}
+```
+
+<Warning>
+  Always ensure viewfinders are properly unlinked when removed to prevent memory leaks in the broadcast system.
+</Warning>
+
+### Example Usage
+
+```java
+import net.mehvahdjukaar.vista.common.view_finder.ViewFinderBlockEntity;
+import net.minecraft.core.BlockPos;
+import net.minecraft.world.level.Level;
+
+public class ViewFinderController {
+    
+    public void rotateViewFinder(Level level, BlockPos pos, float deltaYaw, float deltaPitch) {
+        if (level.getBlockEntity(pos) instanceof ViewFinderBlockEntity vf) {
+            float newYaw = vf.getYaw() + deltaYaw;
+            float newPitch = vf.getPitch() + deltaPitch;
+            
+            vf.setYaw(vf.selfAccess, newYaw);
+            vf.setPitch(vf.selfAccess, newPitch);
+            vf.setChanged();
+        }
+    }
+    
+    public void setMaxZoom(Level level, BlockPos pos) {
+        if (level.getBlockEntity(pos) instanceof ViewFinderBlockEntity vf) {
+            vf.setZoomLevel(ViewFinderBlockEntity.MAX_ZOOM);
+            vf.setChanged();
+        }
+    }
+    
+    public UUID getBroadcastId(Level level, BlockPos pos) {
+        if (level.getBlockEntity(pos) instanceof ViewFinderBlockEntity vf) {
+            return vf.getUUID();
+        }
+        return null;
+    }
+}
+```
+
+## IntAnimationState
+
+Helper class used by TVBlockEntity for smooth animations.
+
+### Constructor
+
+```java
+public IntAnimationState(int incrementSpeed, int decrementSpeed)
+public IntAnimationState(int incrementSpeed, int decrementSpeed, float intensity)
+```
+
+### Methods
+
+<ParamField path="increment" type="void">
+  Increases the animation value by incrementSpeed per tick.
+</ParamField>
+
+<ParamField path="decrement" type="void">
+  Decreases the animation value by decrementSpeed per tick.
+</ParamField>
+
+<ParamField path="getValue" type="float">
+  Returns the interpolated animation value (0.0 to 1.0 or intensity value).
+  
+  **Parameters:**
+  - `partialTicks` (float): Sub-tick interpolation
+</ParamField>

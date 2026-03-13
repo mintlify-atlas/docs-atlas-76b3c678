@@ -1,0 +1,276 @@
+---
+title: 'Supplementaries Integration'
+description: 'Custom shader effects and seasonal features from Supplementaries'
+icon: 'palette'
+---
+
+Vista integrates with [Supplementaries](https://www.curseforge.com/minecraft/mc-mods/supplementaries) to provide enhanced visual effects and special seasonal features for Vista screens.
+
+<Note>
+This integration requires Supplementaries to be installed. Features are automatically enabled when the mod is detected.
+</Note>
+
+## Features
+
+### Mob Head Shaders
+
+Supplementaries' mob head shader system is integrated with Vista screens, allowing items to apply custom visual effects when used with View Finders and other Vista blocks.
+
+<Info>
+The shader system uses Supplementaries' `MobHeadShadersManager` to dynamically apply effects based on the item being displayed.
+</Info>
+
+### Shader Mapping
+
+Vista queries Supplementaries for shader effects on a per-item basis:
+
+```java
+public static ResourceLocation getShaderForItem(Item item) {
+    if (item == VistaMod.TV_ITEM.get()) return null;
+    if (item == QUARK_GLASS_PANE.get()) return RETRO_SHADER;
+    
+    String shaderForItem = MobHeadShadersManager.INSTANCE.getShaderForItem(item);
+    return shaderForItem == null ? null : ResourceLocation.parse(shaderForItem);
+}
+```
+
+### Special Effects
+
+<CardGroup cols={2}>
+  <Card title="Retro NTSC Shader" icon="tv-retro">
+    Applied when using Quark's Dirty Glass Pane with Vista screens
+  </Card>
+  
+  <Card title="Custom Item Shaders" icon="wand-magic-sparkles">
+    Any item with a registered shader in Supplementaries will apply its effect
+  </Card>
+</CardGroup>
+
+---
+
+## Retro NTSC Effect
+
+When **Quark's Dirty Glass Pane** is detected in the game, Vista applies a special retro NTSC codec shader effect:
+
+```java
+private static final ResourceLocation RETRO_SHADER = 
+    VistaMod.res("shaders/post/ntsc_codec.json");
+
+if (item == QUARK_GLASS_PANE.get()) {
+    return RETRO_SHADER;
+}
+```
+
+This creates an authentic vintage television appearance with:
+- Scanline effects
+- Color bleeding
+- Signal interference patterns
+- NTSC-style color encoding artifacts
+
+<Tip>
+Place a Dirty Glass Pane from Quark in front of a Vista screen to activate the retro effect!
+</Tip>
+
+---
+
+## Seasonal Features
+
+Supplementaries includes a festivity system that Vista taps into for special seasonal behaviors.
+
+### April Fools' Mode
+
+Vista checks Supplementaries' festivity calendar to enable special effects:
+
+```java
+public static boolean isFunny() {
+    return MiscUtils.FESTIVITY.isAprilsFool();
+}
+```
+
+When April Fools' Day is active, Vista may enable:
+- Special screen effects
+- Unusual visual behaviors  
+- Fun Easter eggs
+
+<Warning>
+April Fools' features are intentionally whimsical and may cause unexpected (but harmless) visual effects!
+</Warning>
+
+---
+
+## Quark Integration
+
+While technically separate from Supplementaries, Vista's integration code includes special handling for **Quark** items:
+
+### Dirty Glass Pane
+
+Vista automatically detects if Quark is installed and checks for the Dirty Glass Pane item:
+
+```java
+private static final Supplier<Item> QUARK_GLASS_PANE =
+    Suppliers.memoize(() -> 
+        BuiltInRegistries.ITEM
+            .getOptional(ResourceLocation.fromNamespaceAndPath(
+                "quark", "dirty_glass_pane"
+            ))
+            .orElse(null)
+    );
+```
+
+This lazy-loaded supplier ensures:
+- No errors if Quark isn't installed
+- Efficient caching of the item reference
+- Seamless integration when available
+
+---
+
+## Technical Details
+
+### Shader Resolution
+
+The shader resolution process follows this priority:
+
+<Steps>
+  <Step title="TV Item Check">
+    Vista's own TV item never receives shader effects:
+    
+    ```java
+    if (item == VistaMod.TV_ITEM.get()) return null;
+    ```
+  </Step>
+  
+  <Step title="Quark Glass Pane">
+    If the item is Quark's Dirty Glass Pane, return the NTSC shader:
+    
+    ```java
+    if (item == QUARK_GLASS_PANE.get()) return RETRO_SHADER;
+    ```
+  </Step>
+  
+  <Step title="Supplementaries Query">
+    Query Supplementaries' shader manager for item-specific effects:
+    
+    ```java
+    String shader = MobHeadShadersManager.INSTANCE.getShaderForItem(item);
+    return shader == null ? null : ResourceLocation.parse(shader);
+    ```
+  </Step>
+</Steps>
+
+### Shader Application
+
+Shaders are applied during rendering of Vista screens:
+
+1. Item is detected in the display
+2. Shader resource location is resolved
+3. Post-processing effect is applied to the screen texture
+4. Final composited result is rendered
+
+<Info>
+Shaders from Supplementaries are post-processing effects that run after the screen content is rendered.
+</Info>
+
+---
+
+## Compatibility
+
+### Supported Platforms
+
+- ✅ **Fabric** - Full support
+- ✅ **NeoForge** - Full support
+
+### Required Mods
+
+<CardGroup cols={2}>
+  <Card title="Supplementaries" icon="puzzle-piece">
+    Required for shader effects and festivity features
+  </Card>
+  
+  <Card title="Quark (Optional)" icon="gem">
+    Optional - enables Dirty Glass Pane retro shader
+  </Card>
+</CardGroup>
+
+### Graceful Degradation
+
+When Supplementaries is not installed:
+- No shader effects are applied
+- No festivity features activate
+- Vista works normally without any errors
+- All other functionality remains intact
+
+---
+
+## Configuration
+
+Supplementaries integration doesn't require additional configuration. Effects are applied automatically based on:
+
+- Installed mods (Supplementaries, Quark)
+- Current date (for festivity features)
+- Items being displayed
+
+<Tip>
+If you want to customize Supplementaries' shader effects, check Supplementaries' own configuration options.
+</Tip>
+
+---
+
+## Examples
+
+### Creating a Retro TV Setup
+
+<Steps>
+  <Step title="Install Required Mods">
+    Ensure you have Vista, Supplementaries, and Quark installed
+  </Step>
+  
+  <Step title="Place a Vista Screen">
+    Set up any Vista display block (TV, View Finder, etc.)
+  </Step>
+  
+  <Step title="Add Dirty Glass Pane">
+    Place Quark's Dirty Glass Pane in front of or on the display
+  </Step>
+  
+  <Step title="Enjoy Retro Effect">
+    The NTSC codec shader will automatically apply, giving your screen a vintage CRT TV appearance
+  </Step>
+</Steps>
+
+### Custom Shader Items
+
+If you're a pack developer, you can add custom shader mappings through Supplementaries:
+
+1. Define your custom shader in Supplementaries' configuration
+2. Map it to specific items
+3. Vista will automatically use your shader when those items are displayed
+
+---
+
+## Source Code Reference
+
+For implementation details, see:
+
+- `SuppCompat.java` - Main integration class (31 lines)
+  - `getShaderForItem()` - Shader resolution logic
+  - `isFunny()` - Festivity checking
+- `MobHeadShadersManager` - Supplementaries' shader manager (external)
+- `MiscUtils.FESTIVITY` - Supplementaries' festivity system (external)
+
+<Card title="Vista Source Code" icon="code" href="https://github.com/MehVahdJukaar/vista/tree/main/common/src/main/java/net/mehvahdjukaar/vista/integration/supplementaries">
+  View the Supplementaries integration source on GitHub
+</Card>
+
+---
+
+## Related Integrations
+
+<CardGroup cols={2}>
+  <Card title="Iris Shaders" icon="eye" href="/integration/other-mods#iris-shaders">
+    Shader pack compatibility for rendering
+  </Card>
+  
+  <Card title="Exposure" icon="camera" href="/integration/other-mods#exposure">
+    Display photographs on Vista screens
+  </Card>
+</CardGroup>

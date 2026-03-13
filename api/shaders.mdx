@@ -1,0 +1,503 @@
+---
+title: 'Custom Shader System'
+description: 'CRT effects, post-processing chains, and GLSL shader integration'
+---
+
+## Overview
+
+Vista includes a comprehensive shader system for realistic CRT (cathode-ray tube) television effects, post-processing, and custom visual effects. The system supports both core shaders and post-processing chains.
+
+## Shader Types
+
+Vista uses three types of shaders:
+
+1. **Core Shaders** - Real-time rendering shaders (vertex + fragment)
+2. **Post Shaders** - Post-processing effect chains
+3. **Program Shaders** - Individual post-processing passes
+
+## Core Shaders
+
+### Camera View Shader
+
+The main CRT effect shader with phosphor simulation and triad rendering.
+
+**Location:** `assets/vista/shaders/core/camera_view.json`
+
+<CodeGroup>
+```json camera_view.json
+{
+  "vertex": "vista:camera_view",
+  "fragment": "vista:camera_view",
+  "samplers": [
+    { "name": "Sampler0" },
+    { "name": "Sampler1" },
+    { "name": "Sampler2" }
+  ],
+  "uniforms": [
+    { "name": "ModelViewMat", "type": "matrix4x4", "count": 16, "values": [...] },
+    { "name": "ProjMat", "type": "matrix4x4", "count": 16, "values": [...] },
+    { "name": "TriadsPerPixel", "type": "float", "count": 1, "values": [1.0] },
+    { "name": "Smear", "type": "float", "count": 1, "values": [1.0] },
+    { "name": "VignetteIntensity", "type": "float", "count": 1, "values": [1.0] },
+    { "name": "SpriteDimensions", "type": "float", "count": 2, "values": [1.0, 1.0] },
+    { "name": "OverlayIndex", "type": "int", "count": 1, "values": [0] },
+    { "name": "GameTime", "type": "float", "count": 1, "values": [0.0] },
+    { "name": "FadeAnimation", "type": "float", "count": 1, "values": [0.0] },
+    { "name": "NoiseIntensity", "type": "float", "count": 1, "values": [0.0] }
+  ]
+}
+```
+
+```glsl camera_view.fsh (excerpt)
+#version 150
+#moj_import <fog.glsl>
+#moj_import <vista:crt_effects.glsl>
+
+uniform sampler2D Sampler0;
+uniform sampler2D Sampler1;
+
+uniform float GameTime;
+uniform float NoiseIntensity;
+uniform float FadeAnimation;
+uniform int OverlayIndex;
+
+uniform vec2 SpriteDimensions;
+uniform float TriadsPerPixel;
+uniform float Smear;
+uniform float VignetteIntensity;
+
+const int TriadKernelRadius = 1;
+
+vec3 accumulateTriadResponse(
+    vec2 pixelPos,
+    vec2 localUV,
+    vec2 frameOriginUV
+) {
+    vec2 tpp = normalizedTriadPerPixel();
+    vec2 invTpp = 1.0 / max(tpp, vec2(1e-6));
+    
+    vec2 triadPos = pixelPos * tpp - 0.25;
+    
+    // RGB triad positions with offset
+    vec2 rBase = jittered + vec2(0.0, 0.2);
+    vec2 gBase = jittered + vec2(0.25, 0.0);
+    vec2 bBase = jittered + vec2(-0.25, 0.0);
+    
+    // Sample and accumulate with beam falloff
+    vec3 sum = vec3(0.0);
+    for (int dy_i = -dynRadius; dy_i <= dynRadius; ++dy_i) {
+        for (int dx_i = -dynRadius; dx_i <= dynRadius; ++dx_i) {
+            vec2 cellCenter = triadCell + vec2(dx_i, dy_i);
+            
+            float wR = beamFalloff(triadDistance(cellCenter, rBase));
+            float wG = beamFalloff(triadDistance(cellCenter, gBase));
+            float wB = beamFalloff(triadDistance(cellCenter, bBase));
+            
+            // Sample at triad positions
+            sum.r += sampleImage(uvR, frameOriginUV, tpp).r * wR;
+            sum.g += sampleImage(uvG, frameOriginUV, tpp).g * wG;
+            sum.b += sampleImage(uvB, frameOriginUV, tpp).b * wB;
+        }
+    }
+    
+    return clamp(sum, 0.0, 1.0);
+}
+```
+</CodeGroup>
+
+### Shader Uniforms
+
+<ParamField path="TriadsPerPixel" type="float" default="1.0">
+  Density of RGB triads. 1.0 ≈ one triad per texel, greater than 1 = denser triads, less than 1 = larger triads.
+</ParamField>
+
+<ParamField path="Smear" type="float" default="1.0">
+  Beam/spot width in triad units. Greater than 1 = softer/smeared, less than 1 = sharper.
+</ParamField>
+
+<ParamField path="VignetteIntensity" type="float" default="1.0">
+  Vignette strength: 0.0 = off, 1.0 = full darkening at edges.
+</ParamField>
+
+<ParamField path="NoiseIntensity" type="float" default="0.0">
+  Static noise intensity: 0.0 = off, 1.0 = full static.
+</ParamField>
+
+<ParamField path="FadeAnimation" type="float" default="0.0">
+  CRT turn-on/off animation state: 0.0 = off, 1.0 = fully on.
+</ParamField>
+
+<ParamField path="OverlayIndex" type="int" default="0">
+  Overlay effect: 0 = none, 1 = pause, 2 = disconnect, etc.
+</ParamField>
+
+<ParamField path="SpriteDimensions" type="vec2" default="[1.0, 1.0]">
+  Size of sprite frame in normalized UV coordinates.
+</ParamField>
+
+### Static Noise Shader
+
+**Location:** `assets/vista/shaders/core/static_noise.json`
+
+```glsl static_noise.fsh
+#version 150
+
+uniform float NoiseIntensity;
+uniform float GameTime;
+
+out vec4 fragColor;
+
+void main() {
+    vec2 uv = gl_FragCoord.xy;
+    float noise = fract(sin(dot(uv + GameTime, vec2(12.9898, 78.233))) * 43758.5453);
+    fragColor = vec4(vec3(noise * NoiseIntensity), 1.0);
+}
+```
+
+## Post-Processing Chains
+
+### NTSC TV Effect
+
+Complete NTSC television simulation with encoding/decoding artifacts.
+
+**Location:** `assets/vista/shaders/post/ntsc_tv.json`
+
+```json ntsc_tv.json
+{
+    "targets": [
+        "swap",
+        "swap2",
+        "previous"
+    ],
+    "passes": [
+        {
+            "name": "vista:ntsc_encode",
+            "intarget": "minecraft:main",
+            "outtarget": "swap"
+        },
+        {
+            "name": "vista:ntsc_decode",
+            "intarget": "swap",
+            "outtarget": "swap2",
+            "auxtargets": [
+                {
+                    "name": "BaseSampler",
+                    "id": "minecraft:main"
+                }
+            ]
+        },
+        {
+            "name": "vista:deconverge",
+            "intarget": "swap2",
+            "outtarget": "minecraft:main"
+        },
+        {
+            "name": "vista:scan_pincushion",
+            "intarget": "minecraft:main",
+            "outtarget": "swap"
+        },
+        {
+            "name": "vista:phosphor",
+            "intarget": "swap",
+            "outtarget": "minecraft:main",
+            "auxtargets": [
+                {
+                    "name": "PrevSampler",
+                    "id": "previous"
+                }
+            ],
+            "uniforms": [
+                {
+                    "name": "Phosphor",
+                    "values": [0.4, 0.4, 0.4]
+                }
+            ]
+        },
+        {
+            "name": "blit",
+            "intarget": "minecraft:main",
+            "outtarget": "previous"
+        }
+    ]
+}
+```
+
+### Post Chain Passes
+
+<ResponseField name="ntsc_encode" type="shader pass">
+  Encodes RGB to NTSC composite signal (YIQ color space).
+</ResponseField>
+
+<ResponseField name="ntsc_decode" type="shader pass">
+  Decodes NTSC composite back to RGB with intentional artifacts (color bleeding, chroma resolution).
+</ResponseField>
+
+<ResponseField name="deconverge" type="shader pass">
+  Simulates RGB channel deconvergence (color fringing at edges).
+</ResponseField>
+
+<ResponseField name="scan_pincushion" type="shader pass">
+  Adds scanlines and pincushion distortion for CRT curvature.
+</ResponseField>
+
+<ResponseField name="phosphor" type="shader pass">
+  Phosphor persistence effect using previous frame.
+  
+  **Uniforms:**
+  - `Phosphor` (vec3): Decay rates for RGB channels [0.4, 0.4, 0.4]
+</ResponseField>
+
+## Program Shaders
+
+### Phosphor Persistence
+
+```glsl phosphor.fsh
+#version 150
+
+uniform sampler2D DiffuseSampler;
+uniform sampler2D PrevSampler;
+
+in vec2 texCoord;
+uniform vec3 Phosphor;
+
+out vec4 fragColor;
+
+void main() {
+    vec4 CurrTexel = texture(DiffuseSampler, texCoord);
+    vec4 PrevTexel = texture(PrevSampler, texCoord);
+    
+    fragColor = vec4(
+        max(PrevTexel.rgb * Phosphor, CurrTexel.rgb),
+        1.0
+    );
+}
+```
+
+### Available Program Shaders
+
+- **scan_pincushion** - Scanline and barrel distortion
+- **posterize** - Color quantization effect
+- **ntsc_encode** - RGB to NTSC YIQ encoding
+- **ntsc_decode** - NTSC to RGB decoding with artifacts
+- **deconverge** - RGB channel separation
+- **color_grade** - Color correction and grading
+- **blit_flip_y** - Y-axis flip blit
+
+## Setting Post Chain at Runtime
+
+Use `LiveFeedTexture` to apply post-processing:
+
+<CodeGroup>
+```java Apply Post Chain
+LiveFeedTexture texture = ...; // Get texture
+
+// Apply NTSC TV effect
+texture.setPostChain(VistaMod.res("shaders/post/ntsc_tv.json"));
+
+// Apply custom effect
+texture.setPostChain(ResourceLocation.parse("mymod:shaders/post/custom.json"));
+
+// Disable post-processing
+texture.setPostChain(null);
+```
+
+```java Check Current Shader
+ResourceLocation currentShader = texture.getPostChainID();
+if (currentShader != null) {
+    System.out.println("Active shader: " + currentShader);
+}
+```
+</CodeGroup>
+
+## Creating Custom Shaders
+
+### Custom Post Chain
+
+<Expandable title="Example: Custom Grayscale Post Chain">
+
+**File:** `assets/mymod/shaders/post/grayscale.json`
+
+```json
+{
+    "targets": [
+        "swap"
+    ],
+    "passes": [
+        {
+            "name": "mymod:grayscale",
+            "intarget": "minecraft:main",
+            "outtarget": "swap"
+        },
+        {
+            "name": "blit",
+            "intarget": "swap",
+            "outtarget": "minecraft:main"
+        }
+    ]
+}
+```
+
+**File:** `assets/mymod/shaders/program/grayscale.json`
+
+```json
+{
+    "vertex": "mymod:grayscale",
+    "fragment": "mymod:grayscale",
+    "samplers": [
+        { "name": "DiffuseSampler" }
+    ],
+    "uniforms": [
+        { "name": "Intensity", "type": "float", "count": 1, "values": [1.0] }
+    ]
+}
+```
+
+**File:** `assets/mymod/shaders/program/grayscale.vsh`
+
+```glsl
+#version 150
+
+in vec3 Position;
+
+uniform mat4 ProjMat;
+uniform vec2 InSize;
+uniform vec2 OutSize;
+
+out vec2 texCoord;
+out vec2 oneTexel;
+
+void main() {
+    vec4 outPos = ProjMat * vec4(Position, 1.0);
+    gl_Position = vec4(outPos.xy, 0.2, 1.0);
+    
+    texCoord = Position.xy / OutSize;
+    oneTexel = 1.0 / InSize;
+}
+```
+
+**File:** `assets/mymod/shaders/program/grayscale.fsh`
+
+```glsl
+#version 150
+
+uniform sampler2D DiffuseSampler;
+uniform float Intensity;
+
+in vec2 texCoord;
+
+out vec4 fragColor;
+
+void main() {
+    vec4 color = texture(DiffuseSampler, texCoord);
+    
+    // Luminance calculation
+    float gray = dot(color.rgb, vec3(0.299, 0.587, 0.114));
+    
+    // Mix with original based on intensity
+    vec3 result = mix(color.rgb, vec3(gray), Intensity);
+    
+    fragColor = vec4(result, color.a);
+}
+```
+
+</Expandable>
+
+### Custom Core Shader
+
+<Expandable title="Example: Custom Render Type with Shader">
+
+```java CustomRenderType.java
+public class CustomRenderType {
+    public static final CoreShaderContainer CUSTOM_SHADER = 
+        new CoreShaderContainer(GameRenderer::getPositionTexColorShader);
+    
+    // Register in client init
+    public static void registerShaders(ClientHelper.ShaderEvent event) {
+        event.register(
+            ResourceLocation.parse("mymod:custom_effect"),
+            DefaultVertexFormat.NEW_ENTITY,
+            CUSTOM_SHADER::assign
+        );
+    }
+    
+    // Create render type
+    public static RenderType customRenderType(ResourceLocation texture) {
+        return create(
+            "custom_effect",
+            DefaultVertexFormat.NEW_ENTITY,
+            VertexFormat.Mode.QUADS,
+            1536,
+            true,
+            false,
+            RenderType.CompositeState.builder()
+                .setShaderState(new ShaderStateShard(CUSTOM_SHADER))
+                .setTextureState(new TextureStateShard(texture, false, false))
+                .setTransparencyState(TRANSLUCENT_TRANSPARENCY)
+                .createCompositeState(false)
+        );
+    }
+}
+```
+
+</Expandable>
+
+## Shader Uniform Management
+
+Set uniforms dynamically:
+
+```java Setting Uniforms
+ShaderInstance shader = VistaModClient.CAMERA_VIEW_SHADER.get();
+
+// Set float uniforms
+shader.safeGetUniform("TriadsPerPixel").set(1.5f);
+shader.safeGetUniform("VignetteIntensity").set(0.8f);
+
+// Set vec2 uniforms
+shader.safeGetUniform("SpriteDimensions").set(frameWidth, frameHeight);
+
+// Set int uniforms
+shader.safeGetUniform("OverlayIndex").set(1);
+
+// Set matrix uniforms
+shader.safeGetUniform("ModelViewMat").set(matrix);
+```
+
+## CRT Effect Components
+
+### Beam Falloff Function
+
+Simulates electron beam intensity falloff:
+
+```glsl
+float beamFalloff(float d) {
+    float expLike = exp2(-d * d * 2.5 - 0.3);
+    float softTail = 0.05 / (d * d * d * 0.45 + 0.055);
+    return mix(expLike, softTail, 0.65) * 0.99;
+}
+```
+
+### Triad Distance Calculation
+
+```glsl
+float triadDistance(vec2 triadA, vec2 triadB) {
+    vec2 delta = (triadA - triadB) * (vec2(1.25, 1.8) * 0.905 * Smear);
+    float cheb = max(abs(delta.x), abs(delta.y));
+    float eucl = length(delta * vec2(1.05, 1.0)) * 0.85;
+    return mix(cheb, eucl, 0.3);
+}
+```
+
+### Vignette Effect
+
+```glsl
+float crt_vignette(vec2 localUV) {
+    vec2 centered = localUV * 2.0 - 1.0;
+    float dist = length(centered);
+    return 1.0 - smoothstep(0.5, 1.5, dist);
+}
+```
+
+## Related APIs
+
+- [Rendering](/api/rendering) - Rendering system integration
+- [Textures](/api/textures) - Texture targets and post-processing

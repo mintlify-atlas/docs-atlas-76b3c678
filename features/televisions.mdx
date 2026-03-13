@@ -1,0 +1,263 @@
+---
+title: Televisions
+description: Learn how to use television blocks to watch cassettes and create multi-block screens
+---
+
+## Overview
+
+Televisions are display blocks that can play cassette tapes, showing video content with synchronized audio. They support multi-block configurations to create larger screens and can be powered with redstone.
+
+## Placement and Basic Properties
+
+TVs are horizontal directional blocks that can be placed facing any cardinal direction (North, South, East, West). When placing a TV:
+
+- Face the direction you want the screen to point
+- The TV will face away from you
+- Hold sneak while placing to prevent automatic multi-block connection
+
+### Light Level
+
+Powered TVs emit light with a level of 3, making them useful for ambient lighting in builds.
+
+**Source reference:** `TVBlock.java:53`
+
+```java
+super(properties.lightLevel(state -> state.getValue(POWER_STATE).isOn() ? 3 : 0));
+```
+
+## Multi-Block Connections
+
+<Info>
+TVs automatically connect with adjacent TVs facing the same direction to form larger screens.
+</Info>
+
+When you place a TV next to another TV with the same facing direction, they automatically merge into a single larger display. The maximum connected TV size is configurable (default: 8 blocks).
+
+### Connection Types
+
+The mod uses a `TVType` enum to define connection states:
+
+- **SINGLE** - Standalone TV (1x1)
+- **BOTTOM_LEFT** - Bottom-left corner of a multi-block TV (holds the tile entity)
+- **CENTER** - Connected on all sides
+- **TOP**, **BOTTOM**, **LEFT**, **RIGHT** - Edge pieces
+- **TOP_LEFT**, **TOP_RIGHT**, **BOTTOM_RIGHT** - Corner pieces
+
+<Note>
+Only the bottom-left TV in a multi-block configuration has a block entity. All other blocks reference this master tile entity.
+</Note>
+
+### How Connection Works
+
+<Steps>
+  <Step title="Place first TV">
+    Place a TV block facing your desired direction.
+  </Step>
+  
+  <Step title="Place adjacent TVs">
+    Place more TVs next to it (horizontally or vertically) with the same facing direction.
+  </Step>
+  
+  <Step title="Automatic merging">
+    The TVs automatically detect neighbors and form the largest possible rectangle.
+  </Step>
+</Steps>
+
+The connection algorithm (`RectFinder` in `TVBlock.java:234-237`) finds the maximum rectangular configuration when TVs are added or removed.
+
+## Playing Cassettes
+
+### Inserting Cassettes
+
+<Steps>
+  <Step title="Power the TV">
+    Apply a redstone signal to turn on the TV.
+  </Step>
+  
+  <Step title="Right-click with cassette">
+    Hold a cassette tape or hollow cassette and right-click any block in the TV.
+  </Step>
+  
+  <Step title="Playback starts">
+    The video begins playing immediately on the powered TV.
+  </Step>
+</Steps>
+
+**Sound:** Plays the cassette insert sound (`block.television.insert`)
+
+### Ejecting Cassettes
+
+Right-click the TV (while not holding a cassette) to eject the current cassette. The cassette pops out at the location you clicked.
+
+**Sound:** Plays the cassette eject sound (`block.television.eject`)
+
+**Source reference:** `TVBlockEntity.java:151-165`
+
+### Playback Controls
+
+<AccordionGroup>
+  <Accordion title="Pause/Resume">
+    **Sneak + Right-click** the TV to toggle pause.
+    
+    ```java
+    // TVBlockEntity.java:145-148
+    if (!isEmpty && powered && player.isSecondaryUseActive()) {
+        this.paused = !this.paused;
+    }
+    ```
+  </Accordion>
+  
+  <Accordion title="Video Playback">
+    The playback ticks increment each game tick while powered and not paused.
+    
+    - Playback resets to 0 when power is removed
+    - Audio loops based on the cassette's sound duration
+    - Visual content loops seamlessly
+  </Accordion>
+</AccordionGroup>
+
+## Power States
+
+TVs have three distinct power states defined in the `PowerState` enum:
+
+<CardGroup cols={3}>
+  <Card title="OFF" icon="power-off">
+    No redstone signal
+    
+    - Screen is black
+    - No light emission
+    - Playback stopped
+  </Card>
+  
+  <Card title="DIRECT" icon="bolt">
+    Direct redstone power
+    
+    - Powered by adjacent redstone
+    - Screen active
+    - Light level 3
+  </Card>
+  
+  <Card title="INDIRECT" icon="lightbulb">
+    Indirect redstone power
+    
+    - Powered through connected TVs
+    - Screen active
+    - Light level 3
+  </Card>
+</CardGroup>
+
+**Power propagation:** When one TV in a multi-block configuration receives direct power, all connected TVs receive indirect power.
+
+**Source reference:** `PowerState.java:7-19`, `TVBlock.java:200-216`
+
+## Comparator Output
+
+<Info>
+TVs provide comparator output based on the cassette they contain.
+</Info>
+
+The comparator signal strength is determined by the cassette's `comparatorOutput` value:
+
+- **Regular cassettes:** Signal strength 1 (default)
+- **Hollow cassettes:** Signal strength 15
+- **No cassette:** Signal strength 0
+
+**Implementation:** `TVBlock.java:164-176`, `TVBlockEntity.java:258-262`
+
+```java
+protected int getAnalogOutputSignal(BlockState state, Level level, BlockPos pos) {
+    if (level.getBlockEntity(pos) instanceof TVBlockEntity tv) {
+        return tv.getComparatorOutput();
+    }
+    return 0;
+}
+```
+
+## Advanced Features
+
+### Enderman Interactions
+
+When a TV displays a live feed from a viewfinder that's looking at an enderman, special visual effects occur:
+
+- The screen displays static/distortion effects
+- An animation plays when an enderman is in view
+- The animation fades when the enderman looks away
+
+**Source reference:** `TVBlockEntity.java:220-230`, `TVBlock.java:151-161`
+
+### Wearable as Helmet
+
+TVs implement the `Equipable` interface, allowing them to be worn on the head as a helmet.
+
+```java
+// TVBlock.java:68-71
+public EquipmentSlot getEquipmentSlot() {
+    return EquipmentSlot.HEAD;
+}
+```
+
+<Note>
+While functional, wearing a TV as a helmet is mostly a novelty feature!
+</Note>
+
+## Configuration Options
+
+Configuration settings can be found in `vista-common.toml`:
+
+### Maximum Connected TV Size
+
+```toml
+# Maximum size of connected TVs (in blocks)
+# Range: 1-32
+# Default: 8
+max_connected_tv_size = 8
+```
+
+Set to `1` to completely disable multi-block TVs.
+
+**Config location:** `CommonConfigs.java:24-26`
+
+## Achievement
+
+<Card title="Absolute Cinema" icon="trophy">
+  Play a cassette on a large screen television (3+ blocks wide) to unlock this advancement.
+  
+  **Category:** Husbandry  
+  **Type:** Goal
+</Card>
+
+**Trigger:** Inserting a cassette into a powered TV with `connectedTvsAmount >= 3`
+
+**Source reference:** `TVBlockEntity.java:170-174`
+
+## Technical Details
+
+### Screen Rendering
+
+The effective screen size calculation accounts for edge pixels:
+
+```java
+// TVBlockEntity.java:244-256
+private static final int EDGE_PIXEL_LEN = 4;
+public static final int MIN_SCREEN_PIXEL_SIZE = 16 - EDGE_PIXEL_LEN;
+
+public int getScreenPixelWidth() {
+    return Math.max(1, connectedTvsAmount) * 16 - EDGE_PIXEL_LEN;
+}
+```
+
+For a 3x3 TV configuration:
+- Total blocks: 3×3 = 9 TVs
+- Pixel width: 3 × 16 - 4 = 44 pixels
+- Pixel height: 3 × 16 - 4 = 44 pixels
+
+### Tile Entity Management
+
+When TVs connect or disconnect, the mod:
+
+1. Transfers the cassette from the old master tile to the new one
+2. Updates connection size metadata
+3. Recalculates which block should hold the tile entity
+4. Applies all blockstate changes atomically
+
+**Source reference:** `TVBlock.TVGridAccess:288-353`

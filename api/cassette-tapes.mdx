@@ -1,0 +1,173 @@
+---
+title: 'Cassette Tape API'
+description: 'Data-driven cassette tape content system for custom video and audio'
+---
+
+## Overview
+
+Vista uses a data-driven system for cassette tapes, allowing you to define custom video and audio content through JSON files. Each cassette tape is registered via the codec system and can include custom colors, sounds, and visual assets.
+
+## Cassette Tape Record
+
+The `CassetteTape` record is defined in `net.mehvahdjukaar.vista.common.cassette.CassetteTape` and represents a single cassette tape configuration.
+
+### Schema
+
+<ParamField path="asset_id" type="ResourceLocation" required>
+  The resource location pointing to the video/animation asset for this cassette tape. This corresponds to textures or GIF files in your resource pack.
+  
+  **Example:** `"vista:axolotl"` points to `assets/vista/textures/cassette_tape/axolotl.gif` or corresponding animation strip.
+</ParamField>
+
+<ParamField path="color" type="integer (hex color)" required>
+  The hex color code for the cassette tape's visual appearance. Used for tinting the tape item.
+  
+  **Format:** `0xAARRGGBB` or `0xRRGGBB`
+  
+  **Example:** `"0xfffaaad9"` (pink), `"0xff10d3c2"` (cyan)
+</ParamField>
+
+<ParamField path="sound" type="ResourceLocation (SoundEvent)" default="none">
+  Optional sound event to play when the cassette is active.
+  
+  **Note:** If `sound` is present, `sound_duration` must also be specified.
+  
+  **Example:** `"minecraft:music.creative"`
+</ParamField>
+
+<ParamField path="sound_duration" type="integer" default="none">
+  Duration of the sound in ticks (20 ticks = 1 second). Required when `sound` is specified.
+  
+  **Example:** `2400` (120 seconds)
+</ParamField>
+
+<ParamField path="comparator_output" type="integer (0-15)" default="1">
+  Redstone comparator output strength when this cassette is playing.
+  
+  **Range:** 0 to 15
+  
+  **Default:** 1
+</ParamField>
+
+## JSON Examples
+
+### Basic Cassette (Visual Only)
+
+<CodeGroup>
+```json axolotl.json
+{
+  "color": "0xfffaaad9",
+  "asset_id": "vista:axolotl",
+  "comparator_output": 10
+}
+```
+
+```json mc_98.json
+{
+  "color": "0xff10d3c2",
+  "asset_id": "vista:mc_98",
+  "comparator_output": 9
+}
+```
+</CodeGroup>
+
+### Cassette with Sound
+
+```json music_tape.json
+{
+  "color": "0xff00ff00",
+  "asset_id": "mymod:cool_animation",
+  "sound": "mymod:cool_music",
+  "sound_duration": 4800,
+  "comparator_output": 12
+}
+```
+
+## File Location
+
+Cassette tape JSON files should be placed in:
+
+```
+data/<namespace>/vista/cassette_tape/<tape_name>.json
+```
+
+**Example:** `data/vista/vista/cassette_tape/axolotl.json`
+
+## Codec Implementation
+
+The cassette tape system uses Mojang's codec system for serialization:
+
+<CodeGroup>
+```java Direct Codec
+public static final Codec<CassetteTape> DIRECT_CODEC = 
+    RecordCodecBuilder.<CassetteTape>create((instance) -> instance.group(
+        ResourceLocation.CODEC.fieldOf("asset_id").forGetter(CassetteTape::assetId),
+        ColorUtils.CODEC.fieldOf("color").forGetter(CassetteTape::color),
+        SoundEvent.CODEC.optionalFieldOf("sound").forGetter(CassetteTape::soundEvent),
+        ExtraCodecs.POSITIVE_INT.optionalFieldOf("sound_duration")
+            .forGetter(CassetteTape::soundDuration),
+        ExtraCodecs.intRange(0, 15).optionalFieldOf("comparator_output", 1)
+            .forGetter(CassetteTape::comparatorOutput)
+    ).apply(instance, CassetteTape::new))
+    .validate(obj -> {
+        if (obj.soundEvent.isPresent() && !obj.soundDuration.isPresent()) {
+            return DataResult.error(() ->
+                "Cassette tapes with sound events must have a sound duration");
+        }
+        return DataResult.success(obj);
+    });
+```
+
+```java Network Codec
+public static final StreamCodec<RegistryFriendlyByteBuf, CassetteTape> DIRECT_STREAM_CODEC =
+    StreamCodec.composite(
+        ResourceLocation.STREAM_CODEC, CassetteTape::assetId,
+        ByteBufCodecs.VAR_INT, CassetteTape::color,
+        ByteBufCodecs.optional(SoundEvent.STREAM_CODEC), CassetteTape::soundEvent,
+        ByteBufCodecs.optional(ByteBufCodecs.VAR_INT), CassetteTape::soundDuration,
+        ByteBufCodecs.VAR_INT, CassetteTape::comparatorOutput,
+        CassetteTape::new
+    );
+```
+</CodeGroup>
+
+## Asset Requirements
+
+For the cassette tape to display properly, you need corresponding texture assets:
+
+### GIF Animations
+
+Place GIF files in:
+```
+assets/<namespace>/textures/cassette_tape/<asset_name>.gif
+```
+
+### PNG Animation Strips
+
+Alternatively, use PNG animation strips:
+```
+assets/<namespace>/textures/cassette_tape/<asset_name>.png
+```
+
+With corresponding `.mcmeta` file for animation metadata.
+
+## Validation
+
+The codec validates that:
+1. If `sound` is present, `sound_duration` must also be present
+2. `comparator_output` is between 0 and 15
+3. `sound_duration` is a positive integer
+4. All resource locations are valid
+
+## Registry
+
+Cassette tapes are automatically registered when placed in the correct data pack location. The registry key is:
+
+```java
+VistaMod.CASSETTE_TAPE_COMPONENT
+```
+
+## Related APIs
+
+- [Texture Management](/api/textures) - Learn about texture loading and animation
+- [Rendering](/api/rendering) - Understand how cassettes are rendered on TVs

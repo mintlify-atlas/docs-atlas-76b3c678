@@ -1,0 +1,598 @@
+---
+title: Configuration
+description: Complete configuration reference for Vista mod settings
+---
+
+Vista provides extensive configuration options to customize the behavior and performance of televisions and camera systems. This guide covers all available settings.
+
+## Configuration Files
+
+Vista uses two configuration files:
+
+- **vista-common.toml**: Server-synced settings (in `config` folder)
+- **vista-client.toml**: Client-only visual settings (in `config` folder)
+
+<Note>
+Changes to client configuration take effect immediately or after reopening the world. Common configuration requires a server/world restart.
+</Note>
+
+## Common Configuration (Server)
+
+These settings are synchronized from server to clients and affect gameplay mechanics.
+
+### General Settings
+
+```toml vista-common.toml
+[general]
+    # Maximum size of connected TVs (in blocks)
+    # Set to 1 to disable multi-block TVs
+    # Range: 1 ~ 32
+    # Default: 8
+    max_connected_tv_size = 8
+    
+    # Whether creepers should drop tapes when killed by pillagers
+    # Default: true
+    creeper_drop = true
+    
+    # Whether loot chests could contain cassette tapes
+    # Default: true  
+    chest_drop = true
+```
+
+#### max_connected_tv_size
+
+- **Type**: Integer
+- **Range**: 1 to 32
+- **Default**: 8
+- **Description**: Controls the maximum dimensions of multi-block TV displays
+
+<Tabs>
+  <Tab title="Default (8)">
+    Allows up to 8×8 multi-block TV configurations (64 TVs total).
+    
+    **Use case**: Standard gameplay with reasonable TV sizes
+  </Tab>
+  
+  <Tab title="Disabled (1)">
+    Prevents any multi-block TV connections. All TVs remain single blocks.
+    
+    **Use case**: Performance-focused servers, vanilla-like experience
+  </Tab>
+  
+  <Tab title="Large (16-32)">
+    Enables massive TV displays for cinematic builds.
+    
+    **Use case**: Creative servers, cinemas, large-scale builds
+    
+    <Warning>
+    Large multi-block TVs can impact performance, especially with live feeds.
+    </Warning>
+  </Tab>
+</Tabs>
+
+#### creeper_drop
+
+- **Type**: Boolean
+- **Default**: true
+- **Description**: When enabled, Creepers killed by Pillagers have a chance to drop cassette tapes
+
+<Tip>
+This provides an interesting loot mechanic. Disable if you want cassettes to be found only in chests or crafted.
+</Tip>
+
+#### chest_drop
+
+- **Type**: Boolean  
+- **Default**: true
+- **Description**: When enabled, cassette tapes can be found in loot chests
+
+Chest types that may contain cassettes:
+- Dungeon chests
+- Mineshaft chests
+- Woodland mansion chests
+- Other various structure loot
+
+## Client Configuration (Visual)
+
+These settings only affect the local client and control rendering, performance, and visual effects.
+
+### Television Visuals
+
+```toml vista-client.toml
+[television.visuals]
+    # Render distance that television will use when rendering the live feed
+    # Decreasing this will improve performance, possibly by a lot
+    # Range: 1 ~ 256
+    # Default: 64
+    render_distance = 64
+    
+    # Turns off all TV screen effects and draws it as a simple texture
+    # Disabling can make the render slightly faster
+    # All below options will be ignored if this is disabled
+    # Default: true
+    screen_effects = true
+    
+    # Pixel density of televisions, in pixels per block side
+    # Range: 0.1 ~ 10
+    # Default: 1.37
+    pixel_density = 1.37
+    
+    # Make connected TVs have higher pixel density,
+    # such that the per-block pixel density is constant
+    # Default: true
+    constant_pixel_density = true
+    
+    # Amount of vignette effect applied to television live feed
+    # 0 = none, 1 = full
+    # Range: 0.0 ~ 1.0
+    # Default: 1.0
+    vignette = 1.0
+    
+    # Plays an animation when the television is turned off or on
+    # Default: true
+    turn_off_animation = true
+```
+
+#### render_distance
+
+- **Type**: Integer
+- **Range**: 1 to 256  
+- **Default**: 64
+- **Game Restart**: No
+- **Description**: How far the camera can "see" when rendering live feeds
+
+**Performance Impact**: High ⚠️
+
+<CodeGroup>
+```toml Performance (Low-end)
+render_distance = 16
+```
+
+```toml Balanced (Mid-range)  
+render_distance = 64
+```
+
+```toml Quality (High-end)
+render_distance = 128
+```
+</CodeGroup>
+
+Reducing render distance has the most significant performance impact for live feeds.
+
+#### screen_effects
+
+- **Type**: Boolean
+- **Default**: true
+- **Game Restart**: No
+- **Description**: Master toggle for all TV screen visual effects
+
+When disabled:
+- TVs render as flat textures (like item frames)
+- Pixel effects, vignette, and animations are disabled
+- Slightly improves rendering performance
+- Useful for low-end systems or when performance is critical
+
+#### pixel_density
+
+- **Type**: Float
+- **Range**: 0.1 to 10.0
+- **Default**: 1.37
+- **Game Restart**: No  
+- **Description**: How many pixels to render per block face
+
+**Visual Examples**:
+- `0.5`: Very chunky, retro look
+- `1.37`: Default, balanced quality
+- `3.0`: Sharp, high-definition display
+- `10.0`: Ultra-sharp (very performance intensive)
+
+<Note>
+Higher pixel density significantly increases GPU load, especially for large multi-block TVs.
+</Note>
+
+#### constant_pixel_density
+
+- **Type**: Boolean
+- **Default**: true
+- **Game Restart**: No
+- **Description**: Scale pixel density to maintain consistency on multi-block TVs
+
+When enabled:
+- A 3×3 TV has 3× the pixels of a 1×1 TV
+- Maintains visual clarity regardless of TV size
+- More performance intensive for large TVs
+
+When disabled:
+- All TVs use the same base pixel count
+- Large TVs appear more pixelated
+- Better performance for multi-block displays
+
+#### vignette
+
+- **Type**: Float
+- **Range**: 0.0 to 1.0
+- **Default**: 1.0
+- **Game Restart**: No
+- **Description**: Darkening effect around the edges of live feeds
+
+**Values**:
+- `0.0`: No vignette (flat, even lighting)
+- `0.5`: Subtle edge darkening
+- `1.0`: Strong vignette (classic camera look)
+
+#### turn_off_animation
+
+- **Type**: Boolean
+- **Default**: true
+- **Game Restart**: No
+- **Description**: Play CRT-style power on/off animation
+
+When enabled, TVs display a retro "tube TV" effect when powered on or off.
+
+### Live Feed Settings
+
+```toml vista-client.toml
+[television.live_feed]
+    # Draws the date and time on the live feed texture
+    # Default: false
+    draw_date = false
+    
+    # How many times per second the television updates its live feed texture
+    # Lowering this will improve performance but make the video less smooth
+    # Fractions work too
+    # Range: 0 ~ 60
+    # Default: 10.0
+    # Game Restart: true
+    update_fps = 10.0
+    
+    # The minimum update FPS for live feed
+    # The mod will throttle update rate when FPS are low,
+    # so this serves as a lower limit
+    # Range: 0 ~ 60  
+    # Default: 4.0
+    # Game Restart: true
+    min_update_fps = 4.0
+    
+    # The maximum number of milliseconds all the logic for updating
+    # live feeds can take before FPS throttling begins
+    # Lowering this will improve performance but make video less smooth
+    # 16.66ms equals 60fps
+    # Range: 0 ~ 1000000
+    # Default: 16.66
+    # Game Restart: true
+    throttling_update_ms = 16.66
+    
+    # Distance from a TV after which the feed will update in real time
+    # Range: 1 ~ 512
+    # Default: 20.0
+    update_distance = 20.0
+    
+    # Scale factor for live feed resolution
+    # Range: 1 ~ 32
+    # Default: 8
+    # Game Restart: true
+    resolution_scale = 8
+    
+    # Enables rendering of debug information for televisions  
+    # Default: false
+    render_debug = false
+```
+
+#### draw_date
+
+- **Type**: Boolean
+- **Default**: false
+- **Game Restart**: No
+- **Description**: Overlay the in-game date/time on live feeds
+
+Creates a security camera aesthetic with timestamp overlays.
+
+#### update_fps
+
+- **Type**: Float (Double)
+- **Range**: 0 to 60
+- **Default**: 10.0
+- **Game Restart**: Yes ⚠️
+- **Description**: Target frame rate for live feed texture updates
+
+**Performance Impact**: Very High ⚠️⚠️⚠️
+
+<Tabs>
+  <Tab title="Security Cameras">
+    ```toml
+    update_fps = 5.0
+    ```
+    Choppy but acceptable for monitoring. Best performance.
+  </Tab>
+  
+  <Tab title="Standard">
+    ```toml
+    update_fps = 10.0
+    ```
+    Default setting. Good balance of smoothness and performance.
+  </Tab>
+  
+  <Tab title="Smooth">
+    ```toml
+    update_fps = 20.0
+    ```
+    Very smooth video. Significant performance cost.
+  </Tab>
+  
+  <Tab title="Cinematic">
+    ```toml
+    update_fps = 30.0
+    ```
+    Near-real-time. Only for high-end systems with few cameras.
+  </Tab>
+</Tabs>
+
+<Warning>
+Doubling update_fps approximately doubles the performance cost of each live feed.
+</Warning>
+
+#### min_update_fps
+
+- **Type**: Float (Double)
+- **Range**: 0 to 60
+- **Default**: 4.0
+- **Game Restart**: Yes ⚠️
+- **Description**: Minimum update rate during FPS throttling
+
+When performance is poor, Vista reduces update rate but never goes below this value.
+
+**Recommended values**:
+- `2.0`: Acceptable for background security monitors
+- `4.0`: Default, noticeable but not terrible
+- `8.0`: Maintain decent quality even under load
+
+#### throttling_update_ms
+
+- **Type**: Float (Double)  
+- **Range**: 0 to 1000000
+- **Default**: 16.66
+- **Game Restart**: Yes ⚠️
+- **Description**: Milliseconds threshold before throttling activates
+
+**Understanding the values**:
+- `16.66ms` = 60 FPS (if rendering takes longer, throttle)
+- `33.33ms` = 30 FPS
+- `50.00ms` = 20 FPS
+- `100.0ms` = 10 FPS
+
+Lower values trigger throttling sooner (better performance, choppier video).
+
+#### update_distance
+
+- **Type**: Float (Double)
+- **Range**: 1 to 512
+- **Default**: 20.0
+- **Game Restart**: No
+- **Description**: Distance in blocks where live feeds update at full rate
+
+**Behavior**:
+- **Within distance**: Full update rate (`update_fps`)
+- **Beyond distance**: Reduced update rate
+- **Not rendered**: Texture frozen
+
+<Tip>
+Increase to 50-100 for larger builds where you view cameras from far away.
+</Tip>
+
+#### resolution_scale
+
+- **Type**: Integer
+- **Range**: 1 to 32
+- **Default**: 8
+- **Game Restart**: Yes ⚠️
+- **Description**: Multiplier for live feed texture resolution
+
+**Performance Impact**: High ⚠️⚠️
+
+**Calculation**:
+```java
+int screenSize = tvBlockSize * 16 - 4;
+int textureSize = screenSize * resolution_scale;
+```
+
+**Examples** (for 1×1 TV):
+- `resolution_scale = 4`: 48×48 texture
+- `resolution_scale = 8`: 96×96 texture (default)
+- `resolution_scale = 16`: 192×192 texture
+
+<Warning>
+Resolution scales quadratically. Doubling this value creates 4× as many pixels to render.
+</Warning>
+
+#### render_debug
+
+- **Type**: Boolean
+- **Default**: false
+- **Game Restart**: No
+- **Description**: Display debug overlays on TVs
+
+Shows:
+- Current FPS
+- Render time
+- Texture size
+- Camera position
+- Connection status
+
+## Optimization Presets
+
+Here are complete configuration presets for different scenarios:
+
+### Preset: Low-End Performance
+
+```toml vista-client.toml
+[television.visuals]
+    render_distance = 16
+    screen_effects = false
+    pixel_density = 0.8
+    constant_pixel_density = false
+    vignette = 0.0
+    turn_off_animation = false
+
+[television.live_feed]
+    draw_date = false
+    update_fps = 5.0
+    min_update_fps = 2.0
+    throttling_update_ms = 33.33
+    update_distance = 15.0
+    resolution_scale = 4
+    render_debug = false
+```
+
+**Best for**: Integrated graphics, low-end laptops, servers with many players
+
+### Preset: Balanced
+
+```toml vista-client.toml
+[television.visuals]
+    render_distance = 64
+    screen_effects = true
+    pixel_density = 1.37
+    constant_pixel_density = true
+    vignette = 1.0
+    turn_off_animation = true
+
+[television.live_feed]
+    draw_date = false
+    update_fps = 10.0
+    min_update_fps = 4.0
+    throttling_update_ms = 16.66
+    update_distance = 20.0
+    resolution_scale = 8
+    render_debug = false
+```
+
+**Best for**: Default configuration, mid-range systems, normal gameplay
+
+### Preset: High Quality
+
+```toml vista-client.toml
+[television.visuals]
+    render_distance = 128
+    screen_effects = true
+    pixel_density = 2.5
+    constant_pixel_density = true
+    vignette = 1.0
+    turn_off_animation = true
+
+[television.live_feed]
+    draw_date = false
+    update_fps = 20.0
+    min_update_fps = 10.0
+    throttling_update_ms = 16.66
+    update_distance = 40.0
+    resolution_scale = 16
+    render_debug = false
+```
+
+**Best for**: High-end systems, cinematic builds, screenshot/video production
+
+### Preset: Security Cameras
+
+```toml vista-client.toml
+[television.visuals]
+    render_distance = 32
+    screen_effects = true
+    pixel_density = 1.0
+    constant_pixel_density = false
+    vignette = 0.8
+    turn_off_animation = true
+
+[television.live_feed]
+    draw_date = true  # Show timestamp!
+    update_fps = 5.0
+    min_update_fps = 3.0
+    throttling_update_ms = 50.0
+    update_distance = 30.0
+    resolution_scale = 6
+    render_debug = false
+```
+
+**Best for**: Multiple camera setups, surveillance systems, security monitoring
+
+## Performance Guidelines
+
+### Most Impactful Settings
+
+Ranked by performance impact (highest to lowest):
+
+1. **update_fps** - Directly multiplies rendering cost
+2. **render_distance** - Affects geometry rendered per frame  
+3. **resolution_scale** - Quadratic impact (2× = 4× pixels)
+4. **pixel_density** - Similar to resolution_scale
+5. **screen_effects** - Moderate shader cost
+
+### Multi-Camera Considerations
+
+Each active live feed multiplies the performance cost:
+
+```
+Total Cost = Base Cost × Number of Active Feeds
+```
+
+**Recommendations**:
+- **1-2 cameras**: Use balanced settings
+- **3-5 cameras**: Reduce update_fps to 5-7
+- **6-10 cameras**: Use security camera preset
+- **10+ cameras**: Consider not rendering all simultaneously
+
+<Warning>
+With 10 cameras at 10 FPS each, your system renders 100 extra frames per second. Plan accordingly!
+</Warning>
+
+## Troubleshooting
+
+### Game Crashes or Freezes
+
+1. Reset configuration to defaults
+2. Disable `screen_effects`
+3. Set `update_fps` to 5.0
+4. Set `resolution_scale` to 4
+5. Check for shader conflicts (disable Iris/OptiFine temporarily)
+
+### Low FPS with Live Feeds
+
+1. Reduce `update_fps` (try 5.0)
+2. Lower `render_distance` (try 32 or 16)
+3. Decrease `resolution_scale` (try 4)
+4. Set `constant_pixel_density = false`
+5. Limit number of active cameras
+
+### Poor Visual Quality
+
+1. Increase `resolution_scale` (try 12 or 16)
+2. Increase `pixel_density` (try 2.0)
+3. Set `constant_pixel_density = true`
+4. Ensure `screen_effects = true`
+5. Increase `update_fps` for smoother video
+
+## Configuration Location
+
+**Minecraft Installation**: 
+```
+minecraft/
+└── config/
+    ├── vista-common.toml
+    └── vista-client.toml
+```
+
+**Server Installation**:
+```
+server/
+└── config/
+    └── vista-common.toml
+```
+
+<Note>
+Servers only need the common configuration. Client configs are stored on each player's machine.
+</Note>
+
+## See Also
+
+- [Live Feeds](/guides/live-feeds) - Configure camera systems
+- [Multi-Block TVs](/guides/multi-block-tvs) - Understand multi-block configuration impact
+- [Creating Cassettes](/guides/creating-cassettes) - Create content to display on TVs

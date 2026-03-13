@@ -1,0 +1,429 @@
+---
+title: 'Block Classes'
+description: 'Documentation for TVBlock and ViewFinderBlock implementations'
+icon: 'cube'
+---
+
+## TVBlock
+
+The `TVBlock` class represents a television block that can display video content and connect with adjacent TVs to form larger displays.
+
+### Class Definition
+
+```java
+package net.mehvahdjukaar.vista.common.tv;
+
+public class TVBlock extends HorizontalDirectionalBlock 
+    implements EntityBlock, Equipable, IOptionalEntityBlock
+```
+
+**Location:** `net.mehvahdjukaar.vista.common.tv.TVBlock`
+
+### Properties
+
+<ParamField path="POWER_STATE" type="EnumProperty<PowerState>">
+  The current power state of the TV (OFF, DIRECT, INDIRECT).
+  
+  - **OFF**: TV is not powered
+  - **DIRECT**: TV is directly powered by redstone
+  - **INDIRECT**: TV is indirectly powered through connected TVs
+</ParamField>
+
+<ParamField path="CONNECTION" type="EnumProperty<TVType>">
+  Defines how this TV connects to adjacent TVs.
+  
+  Valid values: SINGLE, CENTER, TOP, BOTTOM, LEFT, RIGHT, TOP_LEFT, TOP_RIGHT, BOTTOM_LEFT, BOTTOM_RIGHT
+</ParamField>
+
+<ParamField path="FACING" type="DirectionProperty">
+  The horizontal direction the TV is facing (NORTH, SOUTH, EAST, WEST).
+</ParamField>
+
+### Constructor
+
+```java
+public TVBlock(Properties properties)
+```
+
+Creates a new TV block with the given properties. The block automatically sets its light level based on power state (3 when on, 0 when off).
+
+<ParamField path="properties" type="BlockBehaviour.Properties">
+  Standard Minecraft block properties.
+</ParamField>
+
+### Key Methods
+
+#### getStateForPlacement
+
+```java
+public BlockState getStateForPlacement(BlockPlaceContext context)
+```
+
+Determines the initial block state when placed, including:
+- Power state based on redstone signal
+- Facing direction from player orientation
+- Connection type based on adjacent TVs
+
+<ResponseField name="Returns" type="BlockState">
+  The initial block state for the placed TV.
+</ResponseField>
+
+#### useItemOn
+
+```java
+protected ItemInteractionResult useItemOn(
+    ItemStack stack, 
+    BlockState state, 
+    Level level, 
+    BlockPos pos, 
+    Player player,
+    InteractionHand hand, 
+    BlockHitResult hitResult
+)
+```
+
+Handles player interactions with the TV block. This method:
+- Finds the master TV in a multi-block setup
+- Delegates interaction to the TV block entity
+- Supports cassette insertion/ejection
+
+<ParamField path="stack" type="ItemStack">
+  The item stack the player is holding.
+</ParamField>
+
+<ParamField path="player" type="Player">
+  The player interacting with the TV.
+</ParamField>
+
+<ParamField path="hand" type="InteractionHand">
+  The hand used for interaction.
+</ParamField>
+
+<ResponseField name="Returns" type="ItemInteractionResult">
+  The result of the interaction.
+</ResponseField>
+
+#### neighborChanged
+
+```java
+protected void neighborChanged(
+    BlockState state, 
+    Level level, 
+    BlockPos pos, 
+    Block neighborBlock, 
+    BlockPos neighborPos, 
+    boolean movedByPiston
+)
+```
+
+Called when a neighboring block changes. Updates the TV's power state based on redstone signals and recalculates connections if the power state changes.
+
+#### setPlacedBy
+
+```java
+public void setPlacedBy(
+    Level level, 
+    BlockPos pos, 
+    BlockState state, 
+    @Nullable LivingEntity placer, 
+    ItemStack stack
+)
+```
+
+Called after the TV is placed. Automatically attempts to connect with adjacent TVs unless the player is sneaking.
+
+<ParamField path="placer" type="LivingEntity">
+  The entity that placed the TV (usually a player).
+</ParamField>
+
+#### getAnalogOutputSignal
+
+```java
+protected int getAnalogOutputSignal(BlockState state, Level level, BlockPos pos)
+```
+
+Returns the comparator output signal strength based on the cassette inserted in the TV.
+
+<ResponseField name="Returns" type="int">
+  Signal strength from 0-15, determined by the cassette's `getAnalogSignalStrength` method.
+</ResponseField>
+
+### Multi-TV Connections
+
+TVs can connect with adjacent TVs to form larger displays:
+
+```java
+private void enlargeConnection(BlockState tvState, Level level, BlockPos pos)
+private void shrinkConnection(BlockState tvState, Level level, BlockPos pos)
+```
+
+<Expandable title="Connection System Details">
+  The connection system uses a grid-based algorithm to:
+  
+  1. **Detection**: Scans adjacent blocks for compatible TVs (same facing direction)
+  2. **Grid Formation**: Creates the largest possible rectangular grid
+  3. **Master Selection**: Designates the bottom-left TV as the master with a block entity
+  4. **Slave TVs**: Other connected TVs don't have block entities and delegate to the master
+  5. **Size Limits**: Respects the `MAX_CONNECTED_TV_SIZE` config option
+  
+  Only the master TV stores data (cassette, playback state). When a TV is removed, the connection recalculates and may designate a new master.
+</Expandable>
+
+### Example Usage
+
+```java
+import net.mehvahdjukaar.vista.VistaMod;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.SoundType;
+
+public class CustomTVRegistration {
+    public static final Supplier<Block> CUSTOM_TV = RegHelper.registerBlock(
+        ResourceLocation.fromNamespaceAndPath("mymod", "custom_tv"),
+        () -> new TVBlock(Block.Properties.of()
+            .sound(SoundType.WOOD)
+            .mapColor(MapColor.COLOR_BROWN)
+            .strength(1.5f)
+        )
+    );
+}
+```
+
+---
+
+## ViewFinderBlock
+
+The `ViewFinderBlock` class represents a camera-like block that can broadcast live video feeds to TVs.
+
+### Class Definition
+
+```java
+package net.mehvahdjukaar.vista.common.view_finder;
+
+public class ViewFinderBlock extends DirectionalBlock 
+    implements EntityBlock, IRotatable, IAnalogRotatable
+```
+
+**Location:** `net.mehvahdjukaar.vista.common.view_finder.ViewFinderBlock`
+
+### Properties
+
+<ParamField path="FACING" type="DirectionProperty">
+  The direction the viewfinder is mounted on (all 6 directions supported).
+</ParamField>
+
+<ParamField path="ROTATE_TILE" type="EnumProperty<Rotation>">
+  The rotational orientation of the viewfinder block model.
+  
+  Values: NONE, CLOCKWISE_90, CLOCKWISE_180, COUNTERCLOCKWISE_90
+</ParamField>
+
+### Constructor
+
+```java
+public ViewFinderBlock(Properties properties)
+```
+
+Creates a new viewfinder block. Default state faces UP with no rotation.
+
+### Key Methods
+
+#### getStateForPlacement
+
+```java
+public BlockState getStateForPlacement(BlockPlaceContext context)
+```
+
+Sets the facing direction based on the clicked face.
+
+<ResponseField name="Returns" type="BlockState">
+  Block state with FACING set to the clicked face.
+</ResponseField>
+
+#### setPlacedBy
+
+```java
+public void setPlacedBy(
+    Level level, 
+    BlockPos pos, 
+    BlockState state, 
+    @Nullable LivingEntity placer, 
+    ItemStack stack
+)
+```
+
+Initializes the viewfinder's pitch and yaw to face toward the player who placed it.
+
+#### useItemOn
+
+```java
+protected ItemInteractionResult useItemOn(
+    ItemStack stack, 
+    BlockState state, 
+    Level level, 
+    BlockPos pos, 
+    Player player, 
+    InteractionHand hand, 
+    BlockHitResult hitResult
+)
+```
+
+Handles player interaction:
+- Opens the viewfinder control GUI for players
+- Allows insertion of glass panes for tinting
+- Rejects hollow cassette insertion
+
+<ResponseField name="Returns" type="ItemInteractionResult">
+  SUCCESS if interaction was handled.
+</ResponseField>
+
+#### onRemove
+
+```java
+protected void onRemove(
+    BlockState oldState, 
+    Level level, 
+    BlockPos pos, 
+    BlockState newState, 
+    boolean movedByPiston
+)
+```
+
+Cleanup when the viewfinder is removed:
+- Drops contained items
+- Unlinks the broadcast feed from the BroadcastManager
+
+<Warning>
+  This method is critical for preventing memory leaks in the broadcast system.
+</Warning>
+
+#### rotateAnalog
+
+```java
+public void rotateAnalog(
+    BlockState state, 
+    Level level, 
+    BlockPos pos, 
+    Direction face, 
+    boolean ccw, 
+    float speed
+)
+```
+
+Supports analog rotation via external tools (like Supplementaries' wrench). Updates the viewfinder's pitch and yaw based on the rotation axis.
+
+<ParamField path="face" type="Direction">
+  The axis of rotation.
+</ParamField>
+
+<ParamField path="ccw" type="boolean">
+  True for counter-clockwise rotation.
+</ParamField>
+
+<ParamField path="speed" type="float">
+  Rotation speed multiplier.
+</ParamField>
+
+### Collision Shapes
+
+The viewfinder has custom collision shapes based on its facing direction:
+
+```java
+protected static final VoxelShape SHAPE_DOWN = Block.box(0.0, 0.0, 0.0, 14, 2.0, 14);
+protected static final VoxelShape SHAPE_UP = Block.box(0.0, 14.0, 0.0, 14, 14, 14);
+protected static final VoxelShape SHAPE_SOUTH = Block.box(0.0, 0.0, 14.0, 14, 14, 14);
+protected static final VoxelShape SHAPE_NORTH = Block.box(0.0, 0.0, 0.0, 14, 14, 2.0);
+protected static final VoxelShape SHAPE_EAST = Block.box(14.0, 0.0, 0.0, 14, 14, 14);
+protected static final VoxelShape SHAPE_WEST = Block.box(0.0, 0.0, 0.0, 2.0, 14, 14);
+```
+
+<Note>
+  When a player is actively viewing through the viewfinder, the collision shape becomes empty to prevent the block from obstructing the view.
+</Note>
+
+### Example Usage
+
+```java
+import net.mehvahdjukaar.vista.VistaMod;
+import net.minecraft.world.level.block.Blocks;
+
+public class ViewFinderExample {
+    public static final Supplier<Block> VIEWFINDER = RegHelper.registerBlockWithItem(
+        ResourceLocation.fromNamespaceAndPath("vista", "viewfinder"),
+        () -> new ViewFinderBlock(Block.Properties.of()
+            .strength(1.5f)
+            .isRedstoneConductor((state, level, pos) -> false)
+            .forceSolidOff()
+            .noOcclusion()
+        )
+    );
+}
+```
+
+## PowerState Enum
+
+Defines the power states for TVs:
+
+```java
+public enum PowerState implements StringRepresentable {
+    OFF,      // No power
+    DIRECT,   // Directly powered by redstone
+    INDIRECT  // Indirectly powered through connections
+}
+```
+
+### Methods
+
+<ParamField path="isOn" type="boolean">
+  Returns true if the power state is not OFF.
+</ParamField>
+
+<ParamField path="isStrong" type="boolean">
+  Returns true if the power state is DIRECT.
+</ParamField>
+
+<ParamField path="direct(boolean powered)" type="PowerState" static>
+  Returns DIRECT if powered is true, otherwise OFF.
+</ParamField>
+
+## TVType Enum
+
+Defines connection types for multi-TV setups:
+
+```java
+public enum TVType implements StringRepresentable {
+    SINGLE,        // Not connected
+    CENTER,        // Connected on all 4 sides
+    TOP,           // Connected on bottom, left, right
+    BOTTOM,        // Connected on top, left, right
+    LEFT,          // Connected on top, bottom, right
+    RIGHT,         // Connected on top, bottom, left
+    TOP_LEFT,      // Connected on bottom, right
+    TOP_RIGHT,     // Connected on bottom, left
+    BOTTOM_LEFT,   // Connected on top, right
+    BOTTOM_RIGHT   // Connected on top, left
+}
+```
+
+### Methods
+
+<ParamField path="fromConnections" type="TVType" static>
+  Creates a TVType from boolean connection flags.
+  
+  **Parameters:**
+  - `up` (boolean): Connected above
+  - `down` (boolean): Connected below
+  - `left` (boolean): Connected to the left
+  - `right` (boolean): Connected to the right
+  
+  **Returns:** The corresponding TVType
+</ParamField>
+
+<ParamField path="isConnected" type="boolean">
+  Checks if this TV is connected in a specific direction.
+  
+  **Parameters:**
+  - `worldSide` (Direction): The world-space direction
+  - `tvFacing` (Direction): The TV's facing direction
+  
+  **Returns:** True if connected in that direction
+</ParamField>

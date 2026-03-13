@@ -1,0 +1,379 @@
+---
+title: 'Client Rendering API'
+description: 'Advanced rendering systems for live camera feeds and custom display rendering'
+---
+
+## Overview
+
+Vista's rendering system enables real-time camera feeds by rendering the game world from custom viewpoints into textures. This system includes sophisticated camera management, occlusion culling, and adaptive update scheduling.
+
+## VistaLevelRenderer
+
+The core class `net.mehvahdjukaar.vista.client.renderer.VistaLevelRenderer` handles off-screen world rendering for viewfinder feeds.
+
+### Main Render Method
+
+```java
+public static void render(LiveFeedTexture texture, ViewFinderBlockEntity tile)
+```
+
+<ParamField path="texture" type="LiveFeedTexture" required>
+  The texture target to render the camera feed into.
+</ParamField>
+
+<ParamField path="tile" type="ViewFinderBlockEntity" required>
+  The viewfinder block entity providing camera position and orientation.
+</ParamField>
+
+### Render Context Detection
+
+<CodeGroup>
+```java Check if Rendering Feed
+public static boolean isRenderingLiveFeed() {
+    return renderingLiveFeedVF != null;
+}
+```
+
+```java Check Specific Viewfinder
+public static boolean isViewFinderRenderingLiveFeed(ViewFinderBlockEntity vf) {
+    return renderingLiveFeedVF == vf;
+}
+```
+</CodeGroup>
+
+### Camera Setup
+
+The renderer uses a dummy camera entity to position the virtual camera:
+
+```java Camera Setup
+private static void setupSceneCamera(
+    ViewFinderBlockEntity tile,
+    Camera dummyCamera,
+    float partialTicks
+) {
+    Level level = tile.getLevel();
+    float pitch = tile.getPitch(partialTicks);
+    float yaw = tile.getYaw(partialTicks);
+    
+    if (dummyCamera.entity == null) {
+        dummyCamera.entity = new Display.BlockDisplay(
+            EntityType.BLOCK_DISPLAY, level
+        );
+    }
+    Entity dummyCameraEntity = dummyCamera.getEntity();
+    Vec3 pos = tile.getBlockPos().getCenter();
+    dummyCameraEntity.setPos(pos);
+    dummyCameraEntity.setXRot(pitch);
+    dummyCameraEntity.setYRot(yaw + 180);
+    
+    dummyCamera.setPosition(pos);
+    dummyCamera.setRotation(yaw, pitch);
+}
+```
+
+### Projection Matrix
+
+Custom projection matrix for camera FOV:
+
+```java Custom Projection
+private static Matrix4f createProjectionMatrixForCamera(
+    GameRenderer gr,
+    RenderTarget target,
+    float fov
+) {
+    Matrix4f matrix4f = new Matrix4f();
+    float zoom = 1;
+    
+    if (zoom != 1.0F) {
+        float zoomX = 0;
+        float zoomY = 0;
+        matrix4f.translate(zoomX, -zoomY, 0.0F);
+        matrix4f.scale(zoom, zoom, 1.0F);
+    }
+    float depthFar = gr.getDepthFar();
+    
+    return matrix4f.perspective(
+        fov * Mth.DEG_TO_RAD,
+        (float) target.width / (float) target.height,
+        ViewFinderBlockEntity.NEAR_PLANE,
+        depthFar
+    );
+}
+```
+
+## MSAA Target
+
+Vista provides MSAA (Multi-Sample Anti-Aliasing) support for high-quality rendering.
+
+### MsaaTarget Class
+
+`net.mehvahdjukaar.vista.client.MsaaTarget` extends `TextureTarget` with automatic MSAA:
+
+```java MsaaTarget Constructor
+public MsaaTarget(int width, int height, boolean useDepth, boolean clearError) {
+    super(width, height, useDepth, clearError);
+    this.samples = clampSamples(4); // 4x MSAA by default
+    setupMsaa();
+}
+```
+
+<ParamField path="width" type="int" required>
+  Width of the render target in pixels.
+</ParamField>
+
+<ParamField path="height" type="int" required>
+  Height of the render target in pixels.
+</ParamField>
+
+<ParamField path="useDepth" type="boolean" required>
+  Whether to include depth/stencil buffer.
+</ParamField>
+
+<ParamField path="clearError" type="boolean" required>
+  Whether to clear GL errors on creation.
+</ParamField>
+
+### MSAA Setup
+
+```java MSAA Initialization
+private void setupMsaa() {
+    if (samples == 0) return;
+    
+    // COLOR renderbuffer
+    msColorRb = GL30.glGenRenderbuffers();
+    GL30.glBindRenderbuffer(GL30.GL_RENDERBUFFER, msColorRb);
+    GL30.glRenderbufferStorageMultisample(
+        GL30.GL_RENDERBUFFER, samples, 
+        GL11.GL_RGBA8, this.width, this.height
+    );
+    
+    // DEPTH-STENCIL renderbuffer
+    if (this.useDepth) {
+        msDepthRb = GL30.glGenRenderbuffers();
+        GL30.glBindRenderbuffer(GL30.GL_RENDERBUFFER, msDepthRb);
+        GL30.glRenderbufferStorageMultisample(
+            GL30.GL_RENDERBUFFER, samples,
+            GL30.GL_DEPTH24_STENCIL8, this.width, this.height
+        );
+    }
+    
+    // MSAA FBO
+    msFbo = GL30.glGenFramebuffers();
+    GL30.glBindFramebuffer(GL30.GL_FRAMEBUFFER, msFbo);
+    GL30.glFramebufferRenderbuffer(
+        GL30.GL_FRAMEBUFFER, GL30.GL_COLOR_ATTACHMENT0,
+        GL30.GL_RENDERBUFFER, msColorRb
+    );
+    if (this.useDepth) {
+        GL30.glFramebufferRenderbuffer(
+            GL30.GL_FRAMEBUFFER, GL30.GL_DEPTH_STENCIL_ATTACHMENT,
+            GL30.GL_RENDERBUFFER, msDepthRb
+        );
+    }
+}
+```
+
+### MSAA Resolve
+
+Automatic resolve from MSAA to single-sample texture:
+
+```java Resolve on Unbind
+@Override
+public void unbindWrite() {
+    if (samples > 0 && msFbo > 0) {
+        // Resolve color: READ = MSAA FBO, DRAW = single-sample FBO
+        GL30.glBindFramebuffer(GL30.GL_READ_FRAMEBUFFER, msFbo);
+        GL11.glReadBuffer(GL30.GL_COLOR_ATTACHMENT0);
+        GL30.glBindFramebuffer(GL30.GL_DRAW_FRAMEBUFFER, this.frameBufferId);
+        GL11.glDrawBuffer(GL30.GL_COLOR_ATTACHMENT0);
+        
+        GL30.glBlitFramebuffer(
+            0, 0, this.width, this.height,
+            0, 0, this.width, this.height,
+            GL11.GL_COLOR_BUFFER_BIT,
+            GL11.GL_NEAREST
+        );
+        
+        GL30.glBindFramebuffer(GL30.GL_READ_FRAMEBUFFER, 0);
+        GL30.glBindFramebuffer(GL30.GL_DRAW_FRAMEBUFFER, 0);
+    }
+    
+    GlStateManager._glBindFramebuffer(36160, 0);
+}
+```
+
+## Adaptive Update Scheduler
+
+The `AdaptiveUpdateScheduler` (`net.mehvahdjukaar.vista.client.AdaptiveUpdateScheduler`) provides performance-adaptive update scheduling for live feeds.
+
+### Builder Pattern
+
+<CodeGroup>
+```java Basic Configuration
+AdaptiveUpdateScheduler<UUID> scheduler = 
+    AdaptiveUpdateScheduler.<UUID>builder()
+        .baseFps(10.0)           // Target 10 updates/sec
+        .minFps(2.0)             // Minimum 2 updates/sec
+        .targetBudgetMs(5.0)     // 5ms per frame budget
+        .build();
+```
+
+```java Advanced Configuration
+AdaptiveUpdateScheduler<BlockPos> scheduler = 
+    AdaptiveUpdateScheduler.<BlockPos>builder()
+        .baseRatePerTick(0.5)                      // 0.5 updates per tick
+        .minRatePerTick(0.1)                       // Minimum rate
+        .targetBudgetFromFps(60, 0.15)             // 15% of 60 FPS frame time
+        .smoothingTimeConstantMs(300)              // 300ms smoothing
+        .scaleSmoothingTimeConstantMs(350)         // 350ms scale smoothing
+        .maxScaleChangePerFrame(0.08)              // Max 8% change/frame
+        .guardTargetFps(60)                        // Enable FPS guard at 60 FPS
+        .fpsGuardAlpha(0.2)                        // Guard smoothing
+        .minFpsScale(0.2)                          // Min 20% scale on low FPS
+        .evictAfterTicks(100)                      // Evict after 5 seconds
+        .build();
+```
+</CodeGroup>
+
+### Usage
+
+<CodeGroup>
+```java Schedule Updates
+scheduler.tryRunUpdate(feedId, () -> {
+    // Perform expensive update
+    renderLiveFeed(feedId);
+});
+```
+
+```java Force Next Update
+// Guarantee update on next tick
+scheduler.forceUpdateNextTick(feedId);
+```
+
+```java Frame End Callback
+// Call once per rendered frame
+scheduler.onEndOfFrame();
+```
+
+```java Monitor Performance
+double avgUpdateTime = scheduler.getAverageUpdateTimeMs();
+System.out.println("Average update time: " + avgUpdateTime + "ms");
+```
+</CodeGroup>
+
+### Algorithm Details
+
+<Expandable title="Staggered Phase Accumulator">
+
+The scheduler uses a phase accumulator for deterministic staggering:
+
+```java Phase System
+private boolean stepPhaseAndGrant(Entry e) {
+    double effRate = computeEffectiveUpdateRate();
+    effRate = Mth.clamp(effRate, 0.0, 1.0);
+    
+    // Add tiny irrational jitter to avoid phase-lock
+    double step = effRate + GOLDEN_EPS;
+    
+    double newPhase = e.phase01 + step;
+    boolean granted = newPhase >= 1.0;
+    if (granted) newPhase -= 1.0; // Single wrap → single grant
+    e.phase01 = newPhase;
+    
+    e.lastTickTouched = currentTick;
+    return granted;
+}
+```
+
+- Each object has a phase in [0, 1)
+- Phase increments by `effectiveRate` each tick
+- Grant occurs when phase wraps past 1.0
+- Initial phase seeded from object ID hash for uniform distribution
+
+</Expandable>
+
+<Expandable title="Budget Attribution">
+
+Adaptive scaling based on measured performance:
+
+```java Budget Feedback
+public void onEndOfFrame() {
+    double lastFrameMs = Minecraft.getInstance().getFrameTimeNs() / 1_000_000.0;
+    
+    // Smooth update time with time-constant EMA
+    double updateMsThisFrame = thisFrameAccumulatedUpdateTimeNano / 1_000_000.0;
+    double alphaTime = 1.0 - Math.exp(-lastFrameMs / updateTimeSmoothingTimeWindowMs);
+    smoothedAverageUpdateTimeMs = (1.0 - alphaTime) * smoothedAverageUpdateTimeMs 
+                                + alphaTime * updateMsThisFrame;
+    
+    // Compute raw scale
+    double rawScale = Mth.clamp(
+        updateTimeTargetMs / smoothedAverageUpdateTimeMs, 0.0, 1.0
+    );
+    
+    // Smooth and rate-limit scale changes
+    double betaScale = 1.0 - Math.exp(-lastFrameMs / scaleSmoothingTimeConstantMs);
+    double targetScale = (1.0 - betaScale) * smoothedBudgetScale + betaScale * rawScale;
+    double delta = Mth.clamp(
+        targetScale - smoothedBudgetScale,
+        -maxScaleChangePerFrame, +maxScaleChangePerFrame
+    );
+    smoothedBudgetScale += delta;
+}
+```
+
+</Expandable>
+
+## Render State Management
+
+### LevelRendererCameraState
+
+Manages camera-specific level renderer state for feeds:
+
+```java
+public class LevelRendererCameraState {
+    public static LevelRendererCameraState createNew();
+    public static LevelRendererCameraState capture(LevelRenderer lr);
+    public void apply(LevelRenderer lr);
+    public void copyFrom(LevelRenderer lr);
+    public SectionOcclusionGraph getOcclusionGraph();
+}
+```
+
+### RenderSystemState
+
+Captures and restores OpenGL render state:
+
+```java
+public class RenderSystemState {
+    public static RenderSystemState capture();
+    public void apply();
+}
+```
+
+## Custom Render Types
+
+Vista provides specialized render types in `net.mehvahdjukaar.vista.client.VistaRenderTypes`.
+
+### Shader Registration
+
+```java Shader Registration
+private static void registerShaders(ClientHelper.ShaderEvent event) {
+    event.register(
+        VistaMod.res("static_noise"),
+        DefaultVertexFormat.NEW_ENTITY,
+        STATIC_SHADER::assign
+    );
+    event.register(
+        VistaMod.res("camera_view"),
+        DefaultVertexFormat.NEW_ENTITY,
+        CAMERA_VIEW_SHADER::assign
+    );
+}
+```
+
+## Related APIs
+
+- [Shaders](/api/shaders) - Custom shader system and CRT effects
+- [Textures](/api/textures) - Texture management and live feed textures
+- [Broadcast Locations](/api/broadcast-locations) - Feed connection management

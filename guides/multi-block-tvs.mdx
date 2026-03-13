@@ -1,0 +1,182 @@
+---
+title: Multi-Block TV Displays
+description: Learn how to create large multi-block television displays in Vista
+---
+
+Vista allows you to connect multiple television blocks together to create larger display screens. This guide explains how multi-block TVs work and how to configure them.
+
+## Overview
+
+Multi-block TVs are formed by placing television blocks adjacent to each other in a rectangular grid pattern. When properly configured, these TVs will connect automatically and display content across the entire surface area.
+
+<Note>
+The maximum size of connected TVs is configurable and defaults to 8x8 blocks. You can adjust this in the server configuration file.
+</Note>
+
+## Creating a Multi-Block TV
+
+<Steps>
+  <Step title="Place TV Blocks in a Grid">
+    Place television blocks adjacent to each other in a rectangular or square pattern. The blocks must be:
+    - On the same plane (all facing the same direction)
+    - Directly adjacent to each other (no gaps)
+    - Within the maximum size limit (default: 8x8 blocks)
+  </Step>
+
+  <Step title="Connection Detection">
+    Vista automatically detects valid rectangular configurations. The mod uses an algorithm that:
+    - Scans for the largest possible rectangular area
+    - Validates that all TVs in the area can connect
+    - Prefers square configurations when multiple options are available
+    - Updates connection states dynamically when TVs are added or removed
+  </Step>
+
+  <Step title="Insert a Cassette">
+    Insert a cassette tape into any TV in the connected group. The video will display across the entire multi-block surface.
+  </Step>
+
+  <Step title="Power the Display">
+    Apply redstone power to any TV in the connected group. All connected TVs will turn on simultaneously.
+  </Step>
+</Steps>
+
+## How Multi-Block Detection Works
+
+Vista uses a sophisticated rectangle-finding algorithm to determine valid TV connections:
+
+### Connection Rules
+
+- **Edge Detection**: TVs check their edges to determine which sides can connect
+- **Rectangular Validation**: Only rectangular patterns are valid (no L-shapes or irregular patterns)
+- **Maximum Area**: The algorithm finds the largest possible rectangular configuration
+- **Dynamic Updates**: Connections update automatically when TVs are placed or broken
+
+### TV Types
+
+Each TV in a multi-block display has a specific type based on its position:
+
+- `SINGLE` - Standalone TV (not connected)
+- `CENTER` - Connected on all four sides
+- `TOP` - Top edge TV (connected on bottom, left, right)
+- `BOTTOM` - Bottom edge TV (connected on top, left, right)
+- `LEFT` - Left edge TV (connected on top, bottom, right)
+- `RIGHT` - Right edge TV (connected on top, bottom, left)
+- `TOP_LEFT` - Corner TV (connected on bottom, right)
+- `TOP_RIGHT` - Corner TV (connected on bottom, left)
+- `BOTTOM_LEFT` - Corner TV (connected on top, right)
+- `BOTTOM_RIGHT` - Corner TV (connected on top, left)
+
+<Tip>
+The TV type is stored in the block state and determines which edges have visible frames. Center TVs have no visible edges, creating a seamless display.
+</Tip>
+
+## Visual Properties
+
+### Pixel Density
+
+Multi-block TVs can maintain constant pixel density across the entire display:
+
+- By default, connected TVs scale pixel density to maintain visual consistency
+- Each TV block contributes to the overall screen resolution
+- The screen area excludes a 4-pixel border on each TV block
+- Formula: Screen size = `(blocks × 16) - 4` pixels per dimension
+
+### Screen Positioning
+
+The video content is rendered across the entire connected surface:
+
+```java
+// Screen pixel calculations
+int screenWidth = connectedTvsAmount * 16 - 4;
+int screenHeight = connectedTvsAmount * 16 - 4;
+```
+
+## Configuration
+
+### Server Configuration
+
+Edit your `vista-common.toml` configuration file:
+
+```toml
+[general]
+    # Maximum size of connected TVs (in blocks)
+    # Set to 1 to disable multi-block TVs
+    # Range: 1 ~ 32
+    # Default: 8
+    max_connected_tv_size = 8
+```
+
+<Warning>
+Setting `max_connected_tv_size` to 1 will completely disable multi-block TV functionality. All TVs will remain as single blocks.
+</Warning>
+
+### Client Performance
+
+Larger TV displays require more rendering resources. Consider these performance factors:
+
+- **Render Distance**: Affects how far the TV can "see" when displaying live feeds
+- **Resolution Scale**: Higher values improve quality but reduce performance
+- **Pixel Density**: Affects the sharpness of the display
+
+See the [Configuration](/guides/configuration) page for detailed client settings.
+
+## Advanced Topics
+
+### Expansion Algorithm
+
+The multi-block detection uses a graph search algorithm:
+
+1. Start from the placed TV block
+2. Attempt to expand in all four directions (up, down, left, right)
+3. Check each potential expansion for validity
+4. Find all possible rectangular configurations
+5. Select the largest valid rectangle that fits within size limits
+
+### Breaking Connected TVs
+
+When you break a TV in a connected group:
+
+- The remaining TVs recalculate their connections
+- Multiple smaller groups may form if the break splits the pattern
+- Cassettes remain in their respective TV blocks
+- Power state is maintained for each TV
+
+## Troubleshooting
+
+### TVs Won't Connect
+
+<Steps>
+  <Step title="Check Alignment">
+    Ensure all TVs are facing the same direction and are in the same plane.
+  </Step>
+  
+  <Step title="Verify Pattern">
+    Confirm the pattern is rectangular with no gaps or protrusions.
+  </Step>
+  
+  <Step title="Check Size Limit">
+    Verify your configuration allows the desired size. The default maximum is 8x8 blocks.
+  </Step>
+  
+  <Step title="Update Blocks">
+    Try placing a block next to the TVs or updating them with a block update to trigger reconnection.
+  </Step>
+</Steps>
+
+### Performance Issues
+
+- Reduce the `render_distance` setting in client config
+- Lower the `resolution_scale` value
+- Disable screen effects if experiencing lag
+- Use static cassette content instead of live feeds
+
+## Cinema Achievement
+
+<Tip>
+Insert a cassette tape into a 3×3 (or larger) powered TV display to unlock the Cinema advancement!
+</Tip>
+
+The achievement requires:
+- At least 9 connected TVs (3×3 grid minimum)
+- The TV must be powered on
+- You must insert the cassette while the TV is already powered

@@ -1,0 +1,522 @@
+---
+title: 'Other Mod Integrations'
+description: 'Compatibility with Iris, Sodium, Distant Horizons, Exposure, and JEI'
+icon: 'puzzle-piece'
+---
+
+Vista includes several additional mod integrations focused on performance, rendering compatibility, and enhanced features.
+
+---
+
+## Iris Shaders
+
+Vista integrates with [Iris Shaders](https://irisshaders.net/) (and its Forge port, Oculus) to ensure proper rendering compatibility when shader packs are active.
+
+<Note>
+This integration is detected automatically when Iris or Oculus is installed.
+</Note>
+
+### Shader Management
+
+Iris shader packs can interfere with Vista's camera rendering system. The integration provides an option to disable shaders specifically for Vista camera feeds:
+
+```java
+private static final WorldRenderingPipeline VISTA_PIPELINE = 
+    new VanillaRenderingPipeline();
+
+public static WorldRenderingPipeline getModifiedPipeline() {
+    return VISTA_RENDERING.get() && irisShaderPacksOff.get() 
+        ? VISTA_PIPELINE 
+        : null;
+}
+```
+
+### Configuration
+
+<ParamField path="iris_off_hack" type="boolean" default="true">
+  Attempts to disable Iris shaders in the live feed view for better compatibility.
+</ParamField>
+
+```java
+public static void addConfigs(ConfigBuilder builder) {
+    irisShaderPacksOff = builder
+        .comment("Attempts to disable iris shaders in the live feed view")
+        .define("iris_off_hack", true);
+}
+```
+
+<Info>
+When enabled, Vista renders camera feeds using vanilla rendering instead of Iris shaders, preventing visual artifacts and performance issues.
+</Info>
+
+### Technical Details
+
+The Iris integration manages rendering state during Vista camera passes:
+
+<Steps>
+  <Step title="Detect Vista Rendering">
+    Thread-local flag tracks when Vista is rendering a camera view:
+    
+    ```java
+    private static final ThreadLocal<Boolean> VISTA_RENDERING = 
+        ThreadLocal.withInitial(() -> false);
+    ```
+  </Step>
+  
+  <Step title="Swap Pipeline">
+    Replace Iris pipeline with vanilla pipeline during rendering:
+    
+    ```java
+    ShadowRenderer.ACTIVE = false;
+    VISTA_RENDERING.set(true);
+    renderTask.run();
+    ```
+  </Step>
+  
+  <Step title="Restore State">
+    Restore original Iris state after rendering completes:
+    
+    ```java
+    ShadowRenderer.ACTIVE = oldShadowActive;
+    VISTA_RENDERING.set(oldVistaRendering);
+    oldState.saveTo(CapturedRenderingState.INSTANCE);
+    ```
+  </Step>
+</Steps>
+
+### State Preservation
+
+Vista carefully preserves Iris rendering state during camera passes:
+
+- Gbuffer model/view matrices
+- Gbuffer projection matrix  
+- Fog color and density
+- Darkness light factor
+- Tick delta timing
+- Entity/block entity counters
+- Alpha test values
+- Cloud rendering time
+
+<Warning>
+Disabling this integration may cause visual glitches or crashes when using certain shader packs with Vista cameras.
+</Warning>
+
+---
+
+## Sodium
+
+Vista provides compatibility with [Sodium](https://modrinth.com/mod/sodium) (and its Forge port, Embeddium) for optimal performance.
+
+<Note>
+Both Sodium (Fabric) and Embeddium (NeoForge) are automatically detected.
+</Note>
+
+### Detection
+
+```java
+public static final boolean SODIUM = 
+    PlatHelper.isModLoaded("sodium") || PlatHelper.isModLoaded("embeddium");
+```
+
+### Implementation
+
+The Sodium integration is minimal and primarily ensures Vista's rendering code doesn't conflict with Sodium's optimized rendering pipeline:
+
+```java
+public class SodiumCompat {
+    public static void setupRenderer() {
+        // Compatibility initialization
+    }
+}
+```
+
+<Info>
+No configuration is required. Sodium compatibility is handled automatically at runtime.
+</Info>
+
+---
+
+## Distant Horizons
+
+Vista integrates with [Distant Horizons](https://modrinth.com/mod/distanthorizons) to control LOD (Level of Detail) rendering in camera views.
+
+<Note>
+This integration activates when Distant Horizons is installed.
+</Note>
+
+### LOD Control
+
+By default, Distant Horizons LODs can clutter camera feeds. Vista provides configurable LOD quality control:
+
+```java
+public static Runnable decorateRenderWithoutLOD(Runnable task) {
+    return () -> {
+        var config = DhApi.Delayed.configs.graphics().renderingEnabled();
+        DHMode mode = dhMode.get();
+        
+        if (mode == DHMode.OFF) {
+            // Completely disable LOD rendering
+            boolean valueBefore = config.getValue();
+            config.setValue(false);
+            task.run();
+            config.setValue(valueBefore);
+        } else {
+            // Use reduced LOD quality
+            var newDHConfig = mode.horizontal();
+            var config1 = DhApi.Delayed.configs.graphics().horizontalQuality();
+            var valueBefore = config1.getValue();
+            config1.setValue(newDHConfig);
+            task.run();
+            config1.setValue(valueBefore);
+        }
+    };
+}
+```
+
+### Configuration
+
+<ParamField path="distant_horizons_LOD" type="enum" default="OFF">
+  Controls Distant Horizons LOD rendering quality in Vista camera feeds.
+  
+  **Options:**
+  - `OFF` - Completely disable LOD rendering in cameras
+  - `LOW` - Use lowest LOD quality
+  - `MED` - Use low LOD quality
+  - `HIGH` - Use medium LOD quality
+</ParamField>
+
+```java
+public enum DHMode {
+    OFF,    // No LODs in camera
+    LOW,    // Minimal LODs
+    MED,    // Some LODs
+    HIGH;   // More LODs
+
+    public EDhApiHorizontalQuality horizontal() {
+        return switch (this) {
+            case OFF -> EDhApiHorizontalQuality.LOWEST;
+            case LOW -> EDhApiHorizontalQuality.LOWEST;
+            case MED -> EDhApiHorizontalQuality.LOW;
+            case HIGH -> EDhApiHorizontalQuality.MEDIUM;
+        };
+    }
+}
+```
+
+### Why Control LODs?
+
+<CardGroup cols={2}>
+  <Card title="Performance" icon="bolt">
+    Disabling LODs in camera feeds reduces rendering overhead
+  </Card>
+  
+  <Card title="Visual Clarity" icon="eye">
+    Prevents LOD pop-in and reduces visual noise in camera views
+  </Card>
+  
+  <Card title="Memory Usage" icon="memory">
+    Reduces VRAM usage when multiple cameras are active
+  </Card>
+  
+  <Card title="Consistency" icon="check">
+    Ensures camera views match vanilla rendering quality
+  </Card>
+</CardGroup>
+
+<Tip>
+If you're using View Finders for surveillance or screenshots, setting LOD to `OFF` provides the cleanest image quality.
+</Tip>
+
+---
+
+## Exposure
+
+Vista deeply integrates with [Exposure](https://modrinth.com/mod/exposure) to display photographs and albums on TV screens and projectors.
+
+<Note>
+This integration requires Exposure to be installed. It adds new items and functionality.
+</Note>
+
+### Picture Tape Item
+
+Vista adds a **Picture Tape** item that acts like a cassette but displays photographs:
+
+```java
+public static final Supplier<Item> PICTURE_TAPE = RegHelper.registerItem(
+    VistaMod.res("picture_tape"),
+    () -> new PictureTapeItem(new Item.Properties()
+        .component(PICTURE_TAPE_CONTENT.get(), new PictureTapeContent(List.of())))
+);
+```
+
+### Features
+
+<CardGroup cols={2}>
+  <Card title="Photo Storage" icon="images">
+    Store multiple photographs in a single tape item
+  </Card>
+  
+  <Card title="Slideshow Playback" icon="play">
+    Automatically cycle through photos on Vista screens
+  </Card>
+  
+  <Card title="Album Support" icon="book">
+    Display photos from Exposure albums
+  </Card>
+  
+  <Card title="Stacked Photos" icon="layer-group">
+    Play stacks of photographs as slideshows
+  </Card>
+</CardGroup>
+
+### Supported Items
+
+Vista can display these Exposure items on screens:
+
+- **Photograph** - Single photo display
+- **Stacked Photographs** - Slideshow of multiple photos
+- **Album** - Display all photos from an album
+- **Picture Tape** - Custom Vista slideshow container
+
+```java
+private static boolean isPictureItem(ItemStack stack) {
+    Item item = stack.getItem();
+    return item instanceof PictureTapeItem ||
+           item instanceof PhotographItem || 
+           item instanceof StackedPhotographsItem || 
+           item instanceof AlbumItem;
+}
+```
+
+### Playback System
+
+Photographs cycle automatically with configurable timing:
+
+```java
+private static final int TIME_PER_PICTURE = 40;  // 2 seconds per photo
+
+// Calculate which photo to display
+ItemStack photo = photos.get((time / TIME_PER_PICTURE) % photos.size());
+```
+
+For Picture Tapes, playback speed is configurable:
+
+```java
+ItemStack s = content.getPicture(
+    (time / content.playbackSpeed()) % size
+);
+```
+
+### Picture Tape GUI
+
+Picture Tapes have a custom inventory screen for managing photos:
+
+```java
+public static final Supplier<MenuType<PictureTapeMenu>> PICTURE_TAPE_MENU =
+    RegHelper.registerMenuType(
+        VistaMod.res("picture_tape"), 
+        PictureTapeMenu::fromBuffer
+    );
+```
+
+Use the Picture Tape item to open the GUI and add/remove photographs.
+
+<Info>
+Picture Tapes are obtained through creative mode or crafting (check JEI for recipes).
+</Info>
+
+### Technical Integration
+
+Vista integrates with Exposure's rendering system:
+
+<Steps>
+  <Step title="Extract Frame Data">
+    Retrieve photograph frame from Exposure item:
+    
+    ```java
+    Frame frame = photographItem.getFrame(stack);
+    ```
+  </Step>
+  
+  <Step title="Process with Style">
+    Apply Exposure's photograph style processing:
+    
+    ```java
+    PhotographStyle style = PhotographStyle.of(stack);
+    RenderableImage image = style.process(
+        ExposureClient.renderedExposures().getOrCreate(frame)
+    );
+    ```
+  </Step>
+  
+  <Step title="Get Texture">
+    Obtain the rendered texture location:
+    
+    ```java
+    ImageRenderer imageRenderer = ExposureClient.imageRenderer();
+    RenderedImageInstance texture = 
+        imageRenderer.getOrCreateInstance(image);
+    ResourceLocation textureLocation = texture.getTextureLocation();
+    ```
+  </Step>
+  
+  <Step title="Render on Screen">
+    Display the texture on the Vista screen using vertex consumers
+  </Step>
+</Steps>
+
+<Warning>
+This integration is marked as WIP (Work in Progress) in the code. Some features may be incomplete or subject to change.
+</Warning>
+
+---
+
+## JEI (Just Enough Items)
+
+Vista provides [JEI](https://www.curseforge.com/minecraft/mc-mods/jei) integration for better item browsing and recipe lookup.
+
+<Note>
+JEI integration activates automatically when JEI is installed.
+</Note>
+
+### Cassette Subtypes
+
+Vista registers a subtype interpreter for Cassette items, allowing JEI to distinguish between cassettes with different content:
+
+```java
+@JeiPlugin
+public class JEICompat implements IModPlugin {
+    @Override
+    public void registerItemSubtypes(ISubtypeRegistration registration) {
+        registration.registerSubtypeInterpreter(
+            VistaMod.CASSETTE.get(), 
+            CassetteSubtypeInterpreter.INSTANCE
+        );
+    }
+}
+```
+
+### Subtype Interpreter
+
+The interpreter differentiates cassettes based on their content:
+
+```java
+public enum CassetteSubtypeInterpreter implements ISubtypeInterpreter<ItemStack> {
+    INSTANCE;
+
+    @Override
+    public Object getSubtypeData(ItemStack stack, UidContext uidContext) {
+        return stack.get(VistaMod.CASSETTE_TAPE_COMPONENT.get());
+    }
+
+    @Override
+    public String getLegacyStringSubtypeInfo(ItemStack stack, UidContext uidContext) {
+        Object component = stack.get(VistaMod.CASSETTE_TAPE_COMPONENT.get());
+        return component == null ? "" : component.toString();
+    }
+}
+```
+
+### Benefits
+
+<CardGroup cols={2}>
+  <Card title="Recipe Lookup" icon="book">
+    Look up recipes for cassettes with specific content
+  </Card>
+  
+  <Card title="Usage Display" icon="list">
+    See how different cassette types are used
+  </Card>
+  
+  <Card title="Search Filtering" icon="filter">
+    Search for cassettes by their content
+  </Card>
+  
+  <Card title="Bookmarking" icon="bookmark">
+    Bookmark specific cassette configurations
+  </Card>
+</CardGroup>
+
+<Info>
+Without this integration, JEI would treat all cassettes as identical regardless of their content.
+</Info>
+
+---
+
+## Summary Table
+
+| Mod | Purpose | Configuration | Platform |
+|-----|---------|---------------|----------|
+| **Iris/Oculus** | Shader compatibility | `iris_off_hack` | Fabric/Forge |
+| **Sodium/Embeddium** | Performance optimization | None | Fabric/Forge |
+| **Distant Horizons** | LOD control | `distant_horizons_LOD` | Both |
+| **Exposure** | Photo display | None | Both |
+| **JEI** | Item browsing | None | Both |
+
+---
+
+## Configuration Location
+
+Integration settings can be found in Vista's configuration file:
+
+```
+config/vista-common.toml
+```
+
+Relevant sections:
+
+```toml
+# Iris Shaders
+iris_off_hack = true
+
+# Distant Horizons  
+distant_horizons_LOD = "OFF"
+```
+
+<Tip>
+Restart Minecraft after changing integration settings for changes to take effect.
+</Tip>
+
+---
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Shader artifacts in camera views">
+    Enable the `iris_off_hack` configuration option in Vista's config. This disables Iris shaders specifically for camera rendering.
+  </Accordion>
+  
+  <Accordion title="Performance drops with multiple cameras">
+    If using Distant Horizons, set `distant_horizons_LOD` to `OFF` to disable LOD rendering in camera feeds.
+  </Accordion>
+  
+  <Accordion title="Photos not displaying on screens">
+    Ensure Exposure is installed and up to date. Picture Tapes require Exposure to function.
+  </Accordion>
+  
+  <Accordion title="JEI showing wrong cassette info">
+    This should not occur with the JEI integration. If cassettes appear identical in JEI, verify that both Vista and JEI are up to date.
+  </Accordion>
+</AccordionGroup>
+
+---
+
+## Related Documentation
+
+<CardGroup cols={2}>
+  <Card title="Integration Overview" icon="puzzle-piece" href="/integration/overview">
+    Full list of Vista integrations
+  </Card>
+  
+  <Card title="ComputerCraft" icon="robot" href="/integration/computercraft">
+    Programmable camera control
+  </Card>
+  
+  <Card title="Configuration" icon="gear" href="/guides/configuration">
+    Configure Vista settings
+  </Card>
+  
+  <Card title="Supplementaries" icon="palette" href="/integration/supplementaries">
+    Custom shader effects
+  </Card>
+</CardGroup>

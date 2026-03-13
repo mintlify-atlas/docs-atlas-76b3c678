@@ -1,0 +1,445 @@
+---
+title: Broadcasting System
+description: Create live video feeds from viewfinders to TVs using the broadcast system
+---
+
+## Overview
+
+The broadcasting system allows you to create live camera feeds that display on TVs in real-time. By linking viewfinders to hollow cassettes, you can set up surveillance systems, security cameras, or creative video setups across your world.
+
+## How Broadcasting Works
+
+The broadcast system uses a UUID-based linking mechanism:
+
+1. **Viewfinders** generate a unique UUID when placed
+2. **Hollow cassettes** store a viewfinder's UUID when linked
+3. **BroadcastManager** tracks all active feeds
+4. **TVs** query the manager to stream live video from viewfinders
+
+**Source reference:** `BroadcastManager.java:1-192`
+
+```java
+// BroadcastManager.java:163-178
+public IBroadcastSource getBroadcast(@NotNull UUID feedId, boolean clientSide) {
+    IBroadcastLocation pos = snapshot.get(feedId);
+    if (pos == null) return null;
+    
+    var result = pos.get(clientSide);
+    if (result.isValid()) {
+        return result.getValue();
+    } else {
+        if (!clientSide) {
+            unlinkFeed(feedId);
+        }
+        return null;
+    }
+}
+```
+
+## Creating a Live Feed
+
+<Steps>
+  <Step title="Place a viewfinder">
+    Place a viewfinder block on any surface (wall, floor, or ceiling).
+    
+    The viewfinder automatically generates a unique UUID for identification.
+  </Step>
+  
+  <Step title="Position the camera">
+    Right-click the viewfinder to enter camera mode and adjust:
+    - **Pitch** (vertical angle)
+    - **Yaw** (horizontal angle)  
+    - **Zoom** level
+    
+    Press the lock key to freeze the camera position.
+  </Step>
+  
+  <Step title="Link a hollow cassette">
+    Right-click the viewfinder with a hollow cassette in hand.
+    
+    The cassette stores the viewfinder's UUID and gains an enchanted appearance.
+  </Step>
+  
+  <Step title="Insert into TV">
+    Power a TV with redstone and insert the linked hollow cassette.
+    
+    The TV displays the live feed from the viewfinder's perspective.
+  </Step>
+</Steps>
+
+## Linking Process Details
+
+### Server-Side Registration
+
+When a hollow cassette is linked to a viewfinder:
+
+```java
+// HollowCassetteItem.java:29-41
+public InteractionResult useOn(UseOnContext context) {
+    Level level = context.getLevel();
+    BlockEntity be = level.getBlockEntity(context.getClickedPos());
+    if (be instanceof IBroadcastSource feed) {
+        if (!level.isClientSide) {
+            ItemStack stack = context.getItemInHand();
+            // Store the viewfinder's UUID in the cassette
+            stack.set(VistaMod.LINKED_FEED_COMPONENT.get(), feed.getUUID());
+        }
+        return InteractionResult.sidedSuccess(level.isClientSide);
+    }
+    return super.useOn(context);
+}
+```
+
+**What happens:**
+
+1. The game checks if the clicked block is a broadcast source (viewfinder)
+2. The viewfinder's UUID is written to the cassette's data component
+3. The `BroadcastManager` registers the feed location
+4. The cassette becomes "linked" and displays a foil effect
+
+**Source reference:** `ViewFinderBlockEntity.java:92-99`, `ViewFinderBlockEntity.java:147-148`
+
+### BroadcastManager Registration
+
+The `BroadcastManager` maintains a thread-safe map of all broadcasts:
+
+```java
+// BroadcastManager.java:59-62
+private final Object lock = new Object();
+private final HashBiMap<UUID, IBroadcastLocation> uuidToPos = HashBiMap.create();
+private volatile Map<UUID, IBroadcastLocation> snapshot = Map.of();
+```
+
+**Key features:**
+- **Thread-safe:** Uses synchronized blocks for modifications
+- **Fast reads:** Immutable snapshot for concurrent read access
+- **Bidirectional:** Maps both UUID→Location and Location→UUID
+- **World-saved:** Persists across world reloads
+
+**Source reference:** `BroadcastManager.java:90-106`
+
+## Managing Multiple Feeds
+
+<Info>
+You can create as many viewfinder feeds as you want, each with its own unique UUID.
+</Info>
+
+### Multiple Viewfinders
+
+Each viewfinder can be linked to multiple hollow cassettes:
+
+1. Place multiple viewfinders around your world
+2. Link each one to a separate hollow cassette  
+3. Label cassettes (using anvil) to identify camera locations
+4. Swap cassettes in TVs to switch between camera views
+
+<Note>
+One hollow cassette can only link to one viewfinder at a time. Linking it to a new viewfinder overwrites the previous connection.
+</Note>
+
+### Multi-Room Surveillance
+
+Example setup for a security system:
+
+<AccordionGroup>
+  <Accordion title="Front Gate Camera">
+    - Place viewfinder at entrance
+    - Link to cassette labeled "Front Gate"
+    - Mount on wall facing the gate
+  </Accordion>
+  
+  <Accordion title="Storage Room Camera">
+    - Place viewfinder in storage room
+    - Link to cassette labeled "Storage"
+    - Position at ceiling for wide angle view
+  </Accordion>
+  
+  <Accordion title="Control Room Display">
+    - Place 2×2 multi-block TV in control room
+    - Swap cassettes to view different cameras
+    - Use comparators to detect which cassette is inserted
+  </Accordion>
+</AccordionGroup>
+
+### Feed Identification
+
+Hollow cassettes show which viewfinder they're linked to:
+
+```java
+// HollowCassetteItem.java:50-68 (simplified)
+UUID feedId = stack.get(VistaMod.LINKED_FEED_COMPONENT.get());
+if (feedId != null) {
+    BroadcastManager connection = BroadcastManager.getInstance(level);
+    IBroadcastLocation gp = connection.getFeedLocationById(feedId);
+    if (gp == null) {
+        // "Linked to invalid location"
+    } else {
+        // "Linked to [X, Y, Z]" or "Linked somewhere in [Dimension]"
+    }
+}
+```
+
+**Tooltip formats:**
+- **Same dimension:** "Linked to [X, Y, Z]"
+- **Different dimension:** "Linked somewhere in [Dimension Name]"  
+- **Broken link:** "Linked to invalid location"
+
+**Source reference:** `en_us.json:8-10`
+
+## Broadcast Range and Performance
+
+### Cross-Dimensional Broadcasting
+
+Broadcasts work **across dimensions**:
+
+- Link a viewfinder in the Overworld
+- Take the hollow cassette to the Nether
+- Insert into a TV to view the Overworld feed
+
+**Limitation:** The tooltip won't show exact coordinates when viewing from a different dimension.
+
+### Performance Considerations
+
+The broadcast system is optimized for performance:
+
+<CardGroup cols={2}>
+  <Card title="Server-Side" icon="server">
+    - Updates staggered every 27 ticks
+    - Only active when TV is powered
+    - Enderman checks are rate-limited
+    
+    **Source:** `TVBlockEntity.java:217-219`
+  </Card>
+  
+  <Card title="Client-Side" icon="desktop">
+    - Video source rendered on-demand
+    - Audio loops optimized
+    - Fade animations for turn-on/off effects
+    
+    **Source:** `TVBlockEntity.java:192-213`
+  </Card>
+</CardGroup>
+
+### Network Synchronization
+
+The `BroadcastManager` syncs to clients:
+
+```java
+// BroadcastManager.java:43-56
+public static final StreamCodec<RegistryFriendlyByteBuf, BroadcastManager> 
+    STREAM_CODEC = ByteBufCodecs.map(
+        i -> new HashMap<>(),
+        UUIDUtil.STREAM_CODEC,
+        IBroadcastLocation.STREAM_CODEC
+    ).map(
+        map -> {
+            BroadcastManager storage = new BroadcastManager();
+            map.forEach((uuid, pos) -> storage.addFeedInternal(uuid, pos, true));
+            storage.publishSnapshot();
+            return storage;
+        },
+        storage -> new HashMap<>(storage.snapshot)
+    );
+```
+
+**Synced data:**
+- All viewfinder UUIDs
+- All viewfinder locations  
+- Feed validity status
+
+## Troubleshooting Connection Issues
+
+<AccordionGroup>
+  <Accordion title="TV shows static or no video">
+    **Possible causes:**
+    
+    1. **Viewfinder was removed** - The broadcast source no longer exists
+    2. **Chunks not loaded** - Viewfinder is in unloaded chunks
+    3. **TV not powered** - TV needs redstone power to display video
+    
+    **Solutions:**
+    - Check if viewfinder still exists at the location shown in tooltip
+    - Ensure chunks containing the viewfinder are loaded
+    - Verify TV has redstone power
+  </Accordion>
+  
+  <Accordion title="Cassette shows 'invalid location'">
+    **Cause:** The viewfinder was destroyed or replaced.
+    
+    **Solution:** 
+    - Place a new viewfinder
+    - Re-link the hollow cassette by right-clicking the new viewfinder
+  </Accordion>
+  
+  <Accordion title="Can't link hollow cassette">
+    **Possible causes:**
+    
+    1. **Wrong item** - Make sure you're using a hollow cassette, not a regular one
+    2. **Wrong block** - Ensure you're clicking on the viewfinder block
+    3. **Mounting instead** - Don't sneak-click, just right-click normally
+    
+    **Solution:** Stand close to the viewfinder and right-click it with the hollow cassette.
+  </Accordion>
+  
+  <Accordion title="Feed shows wrong camera angle">
+    **Cause:** Camera position wasn't locked or was accidentally moved.
+    
+    **Solution:**
+    1. Mount the viewfinder by right-clicking
+    2. Adjust pitch, yaw, and zoom as desired  
+    3. Press the lock key (Shift) to freeze the camera
+    4. Dismount and insert linked cassette into TV
+  </Accordion>
+</AccordionGroup>
+
+## Advanced Broadcasting Techniques
+
+### Automatic Camera Switching
+
+Use redstone and comparators to create automatic camera switching:
+
+<Steps>
+  <Step title="Setup multiple TVs">
+    Place several TVs in a row, each with a different linked hollow cassette.
+  </Step>
+  
+  <Step title="Use comparators">
+    Connect comparators to detect which TV has a cassette (signal strength 15).
+  </Step>
+  
+  <Step title="Power cycling">
+    Use redstone clocks to power TVs sequentially, creating a rotating display.
+  </Step>
+</Steps>
+
+**Comparator values:**
+- Empty TV: 0
+- Regular cassette: 1  
+- Hollow cassette: 15
+
+**Source reference:** `HollowCassetteItem.java:71-73`
+
+### Dynamic Feeds with Rotation
+
+If you have Supplementaries or another mod with rotation tools:
+
+1. Place viewfinder on a block face
+2. Use wrench to slowly rotate the camera
+3. The feed updates in real-time on all connected TVs
+4. Create sweeping or panning camera movements
+
+**Source reference:** `ViewFinderBlock.java:209-223`
+
+### Enderman Detection System
+
+Viewfinders detect when they're looking at endermen:
+
+```java
+// TVBlockEntity.java:220-230
+boolean hasAngeredEntity = false;
+if (powered && tv.observationController != null) {
+    hasAngeredEntity = tv.observationController.tick();
+}
+boolean couldSeeEnderman = tv.isLookingAtEnderman;
+if (hasAngeredEntity != couldSeeEnderman) {
+    tv.isLookingAtEnderman = hasAngeredEntity;
+    world.blockEvent(pos, state.getBlock(), 1, hasAngeredEntity ? 1 : 0);
+}
+```
+
+**Effect:** When a hollow cassette feed shows an enderman, the TV displays special static effects.
+
+**Use case:** Create an "intruder alert" system that detects when endermen enter an area.
+
+## World-Saved Data
+
+The `BroadcastManager` is saved as world data:
+
+```java
+// BroadcastManager.java:31-41
+public static final Codec<BroadcastManager> CODEC =
+    Codec.unboundedMap(UUIDUtil.STRING_CODEC, IBroadcastLocation.CODEC)
+        .xmap(
+            map -> {
+                BroadcastManager storage = new BroadcastManager();
+                map.forEach((uuid, pos) -> storage.addFeedInternal(uuid, pos, false));
+                storage.publishSnapshot();
+                return storage;
+            },
+            storage -> storage.snapshot
+        );
+```
+
+**Benefits:**
+- Survives server restarts
+- Links persist across world reloads  
+- Automatically cleans up invalid feeds
+- Synchronizes to clients on join
+
+**Storage location:** `data/vista/viewfinder_connection.dat` in the world save folder
+
+**Source reference:** `BroadcastManager.java:182-189`
+
+## API for Modders
+
+<Info>
+Other mods can interact with the broadcast system through the `BroadcastManager` API.
+</Info>
+
+### Accessing the Manager
+
+```java
+BroadcastManager manager = BroadcastManager.getInstance(level);
+```
+
+### Key API Methods
+
+**Link a feed:**
+```java
+manager.linkFeed(UUID feedUUID, IBroadcastLocation location);
+```
+
+**Unlink a feed:**
+```java
+manager.unlinkFeed(UUID feedUUID);
+manager.unlinkFeed(IBroadcastLocation location);
+```
+
+**Query a feed:**
+```java
+IBroadcastLocation location = manager.getFeedLocationById(UUID feedUUID);
+UUID feedId = manager.getIdOfFeedAt(IBroadcastLocation location);
+IBroadcastSource source = manager.getBroadcast(UUID feedId, boolean clientSide);
+```
+
+**Iterate all feeds:**
+```java
+for (var entry : manager.getAll()) {
+    UUID uuid = entry.getKey();
+    IBroadcastLocation location = entry.getValue();
+    // Process each feed
+}
+```
+
+**Source reference:** Public API methods in `BroadcastManager.java:88-178`
+
+### Implementing Custom Broadcast Sources
+
+You can create custom broadcast sources by implementing `IBroadcastSource`:
+
+```java
+public interface IBroadcastSource {
+    UUID getUUID();
+    
+    @Nullable
+    IVideoSource getBroadcastVideo();
+}
+```
+
+**Example use cases:**
+- Drone entities with cameras
+- Moving platforms with viewfinders
+- Security camera entities
+- Custom surveillance blocks
+
+**Source reference:** `ViewFinderBlockEntity.java:34`, `ViewFinderBlockEntity.java:69-71`

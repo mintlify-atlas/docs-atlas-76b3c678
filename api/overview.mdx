@@ -1,0 +1,230 @@
+---
+title: 'API Overview'
+description: 'Getting started with the Vista API for creating custom television blocks and broadcasting systems'
+icon: 'book-open'
+---
+
+## Introduction
+
+The Vista API provides a comprehensive set of interfaces and classes for creating custom television blocks, viewfinders, and video broadcasting systems in Minecraft. This API is designed to be extensible and allows mod developers to integrate with Vista's broadcasting infrastructure.
+
+## Core Concepts
+
+### Broadcasting System
+
+Vista uses a centralized broadcasting system that connects video sources (like ViewFinders) to displays (like TVs). The system is managed through:
+
+- **BroadcastManager**: World-saved data that tracks all active broadcasts
+- **IBroadcastLocation**: Interface for defining broadcast source locations
+- **IBroadcastSource**: Interface for entities that can broadcast video content
+
+### Video Sources
+
+Video sources provide the content that TVs display. Vista supports:
+
+- **Cassette Tapes**: Pre-recorded video content
+- **Live Feeds**: Real-time video from ViewFinders
+- **Custom Sources**: Implement `IVideoSource` for custom content
+
+## Main Components
+
+<CardGroup cols={2}>
+  <Card title="Blocks" icon="cube" href="/api/blocks">
+    TVBlock and ViewFinderBlock implementations
+  </Card>
+  <Card title="Block Entities" icon="database" href="/api/block-entities">
+    TVBlockEntity and ViewFinderBlockEntity with their features
+  </Card>
+  <Card title="Broadcasting" icon="tower-broadcast" href="/api/broadcast-system">
+    BroadcastManager and location system
+  </Card>
+  <Card title="Cassettes" icon="cassette-tape">
+    ITvCassette interface for custom cassette items
+  </Card>
+</CardGroup>
+
+## Getting Started
+
+### Adding Vista as a Dependency
+
+Add Vista to your mod's dependencies:
+
+<CodeGroup>
+```gradle Gradle (build.gradle)
+dependencies {
+    // Replace VERSION with the Vista version you want to use
+    modImplementation "net.mehvahdjukaar:vista:VERSION"
+}
+```
+
+```json Fabric (fabric.mod.json)
+{
+  "depends": {
+    "vista": ">=1.0.0"
+  }
+}
+```
+</CodeGroup>
+
+### Creating a Custom TV Cassette
+
+Implement the `ITvCassette` interface to create custom cassette items:
+
+```java
+public class MyCustomCassette extends Item implements ITvCassette {
+    
+    public MyCustomCassette(Properties properties) {
+        super(properties);
+    }
+    
+    @Override
+    public int getAnalogSignalStrength(ItemStack stack) {
+        // Return comparator output strength (0-15)
+        return 15;
+    }
+}
+```
+
+### Accessing the Broadcast Manager
+
+Get the broadcast manager instance to work with active broadcasts:
+
+```java
+import net.mehvahdjukaar.vista.common.broadcast.BroadcastManager;
+import net.minecraft.server.level.ServerLevel;
+
+public void accessBroadcastManager(ServerLevel level) {
+    BroadcastManager manager = BroadcastManager.getInstance(level);
+    
+    // Get all active broadcasts
+    for (var entry : manager.getAll()) {
+        UUID feedId = entry.getKey();
+        IBroadcastLocation location = entry.getValue();
+        // Process broadcasts
+    }
+}
+```
+
+### Creating a Broadcast Source
+
+Implement `IBroadcastSource` to create custom broadcast sources:
+
+```java
+import net.mehvahdjukaar.vista.common.cassette.IBroadcastSource;
+import net.mehvahdjukaar.vista.common.broadcast.LevelBELocation;
+import net.mehvahdjukaar.vista.client.video_source.IVideoSource;
+
+public class MyBroadcastEntity extends BlockEntity implements IBroadcastSource {
+    
+    private UUID broadcastId = UUID.randomUUID();
+    private IVideoSource videoSource;
+    
+    @Override
+    public UUID getUUID() {
+        return broadcastId;
+    }
+    
+    @Override
+    public IVideoSource getBroadcastVideo() {
+        return videoSource;
+    }
+    
+    @Override
+    public void setLevel(Level level) {
+        super.setLevel(level);
+        // Register this broadcast source
+        this.ensureLinked(level, LevelBELocation.of(this));
+    }
+}
+```
+
+## Key Interfaces
+
+### ITvCassette
+
+Interface for items that can be inserted into TVs.
+
+<ParamField path="getAnalogSignalStrength" type="int">
+  Returns the comparator output signal strength (0-15) when this cassette is in a TV.
+  
+  **Parameters:**
+  - `stack` (ItemStack): The cassette item stack
+  
+  **Returns:** Signal strength value between 0 and 15
+</ParamField>
+
+### IBroadcastSource
+
+Interface for block entities that can broadcast video content.
+
+<ParamField path="getUUID" type="UUID">
+  Returns the unique identifier for this broadcast source.
+</ParamField>
+
+<ParamField path="getBroadcastVideo" type="IVideoSource">
+  Returns the video source being broadcast, or null if not broadcasting.
+</ParamField>
+
+<ParamField path="ensureLinked" type="void">
+  Registers this broadcast source with the BroadcastManager.
+  
+  **Parameters:**
+  - `level` (Level): The world level
+  - `location` (IBroadcastLocation): The broadcast location
+</ParamField>
+
+## Registry Keys
+
+Vista provides several important registry keys accessed through the `VistaMod` class:
+
+```java
+// Cassette tape registry
+public static final ResourceKey<Registry<CassetteTape>> CASSETTE_TAPE_REGISTRY_KEY
+
+// Broadcast location type registry  
+public static final Registry<BroadcastLocationType> BROADCAST_LOCATION_REGISTRY
+
+// Data components
+public static final Supplier<DataComponentType<UUID>> LINKED_FEED_COMPONENT
+public static final Supplier<DataComponentType<Holder<CassetteTape>>> CASSETTE_TAPE_COMPONENT
+```
+
+## Sound Events
+
+Vista provides sound events for TV interactions:
+
+```java
+// Cassette insertion sound
+VistaMod.CASSETTE_INSERT_SOUND.get()
+
+// Cassette ejection sound
+VistaMod.CASSETTE_EJECT_SOUND.get()
+
+// TV static sound
+VistaMod.TV_STATIC_SOUND.get()
+```
+
+## Best Practices
+
+<Warning>
+  Always ensure broadcast sources are properly unlinked when removed from the world to prevent memory leaks.
+</Warning>
+
+<Tip>
+  Use the `WorldSavedDataType` system to persist broadcast connections across world reloads.
+</Tip>
+
+<Note>
+  Client-side and server-side broadcast lookups are handled differently. Always check the `isClient` parameter when implementing broadcast locations.
+</Note>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Block Reference" icon="cube" href="/api/blocks">
+    Learn about TVBlock and ViewFinderBlock classes
+  </Card>
+  <Card title="Broadcasting System" icon="tower-broadcast" href="/api/broadcast-system">
+    Deep dive into the broadcast manager and location system
+  </Card>
+</CardGroup>

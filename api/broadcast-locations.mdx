@@ -1,0 +1,272 @@
+---
+title: 'Broadcast Location Registry'
+description: 'System for managing and linking viewfinder feeds to broadcast sources'
+---
+
+## Overview
+
+The Broadcast Location system manages connections between viewfinder cameras and their broadcast destinations. It uses a codec-based registry to support multiple location types and handles both client and server synchronization.
+
+## Core Interface
+
+### IBroadcastLocation
+
+The main interface for broadcast locations, defined in `net.mehvahdjukaar.vista.common.broadcast.IBroadcastLocation`.
+
+```java IBroadcastLocation.java
+public interface IBroadcastLocation {
+    // Get the broadcast source at this location
+    TriResult<IBroadcastSource> get(boolean isClient);
+    
+    // Get the type of this location
+    BroadcastLocationType type();
+    
+    // Get tooltip text for UI display
+    MutableComponent getTooltipComponent(Level level);
+}
+```
+
+## Location Type
+
+### BroadcastLocationType Record
+
+Defines a broadcast location type with serialization codecs:
+
+```java BroadcastLocationType.java
+public record BroadcastLocationType(
+    MapCodec<? extends IBroadcastLocation> codec,
+    StreamCodec<ByteBuf, ? extends IBroadcastLocation> streamCodec
+) {}
+```
+
+<ParamField path="codec" type="MapCodec<? extends IBroadcastLocation>" required>
+  Mojang codec for JSON/NBT serialization of the location data.
+</ParamField>
+
+<ParamField path="streamCodec" type="StreamCodec<ByteBuf, ? extends IBroadcastLocation>" required>
+  Network stream codec for client-server synchronization.
+</ParamField>
+
+## Broadcast Manager
+
+The `BroadcastManager` (located at `net.mehvahdjukaar.vista.common.broadcast.BroadcastManager`) manages all feed connections in a world.
+
+### World Saved Data
+
+Broadcast connections are persisted as world saved data:
+
+```java
+public static BroadcastManager getInstance(Level level) {
+    return VistaMod.VIEWFINDER_CONNECTION.getData(level);
+}
+```
+
+### Linking Feeds
+
+<CodeGroup>
+```java Link Feed
+// Link a viewfinder UUID to a broadcast location
+BroadcastManager manager = BroadcastManager.getInstance(level);
+manager.linkFeed(viewFinderUUID, broadcastLocation);
+```
+
+```java Unlink by Location
+// Remove connection at a specific location
+manager.unlinkFeed(broadcastLocation);
+```
+
+```java Unlink by UUID
+// Remove connection for a specific viewfinder
+manager.unlinkFeed(viewFinderUUID);
+```
+</CodeGroup>
+
+### Querying Feeds
+
+<CodeGroup>
+```java Get Location by UUID
+@Nullable
+IBroadcastLocation location = manager.getFeedLocationById(viewFinderUUID);
+if (location != null) {
+    // Use location
+}
+```
+
+```java Get UUID by Location
+@Nullable
+UUID feedId = manager.getIdOfFeedAt(broadcastLocation);
+if (feedId != null) {
+    // Use feed ID
+}
+```
+
+```java Get Broadcast Source
+@Nullable
+IBroadcastSource source = manager.getBroadcast(feedId, clientSide);
+if (source != null) {
+    // Use broadcast source
+}
+```
+
+```java Iterate All Connections
+for (Map.Entry<UUID, IBroadcastLocation> entry : manager.getAll()) {
+    UUID feedId = entry.getKey();
+    IBroadcastLocation location = entry.getValue();
+    // Process each connection
+}
+```
+</CodeGroup>
+
+## Codec System
+
+### Main Codec
+
+The broadcast location codec uses a dispatch system:
+
+```java
+Codec<IBroadcastLocation> CODEC = Codec.lazyInitialized(
+    () -> VistaMod.BROADCAST_LOCATION_REGISTRY.byNameCodec()
+        .dispatch(IBroadcastLocation::type, BroadcastLocationType::codec)
+);
+```
+
+### Network Stream Codec
+
+For client-server synchronization:
+
+```java
+StreamCodec<RegistryFriendlyByteBuf, IBroadcastLocation> STREAM_CODEC =
+    ByteBufCodecs.registry(VistaMod.BROADCAST_LOCATION_REGISTRY.key())
+        .dispatch(IBroadcastLocation::type, BroadcastLocationType::streamCodec);
+```
+
+## Persistence
+
+The manager uses codecs for world data serialization:
+
+<CodeGroup>
+```java Save Codec
+public static final Codec<BroadcastManager> CODEC =
+    Codec.unboundedMap(UUIDUtil.STRING_CODEC, IBroadcastLocation.CODEC)
+        .xmap(
+            map -> {
+                BroadcastManager storage = new BroadcastManager();
+                map.forEach((uuid, pos) -> storage.addFeedInternal(uuid, pos, false));
+                storage.publishSnapshot();
+                return storage;
+            },
+            storage -> storage.snapshot
+        );
+```
+
+```java Network Codec
+public static final StreamCodec<RegistryFriendlyByteBuf, BroadcastManager> STREAM_CODEC =
+    ByteBufCodecs.map(
+        i -> new HashMap<>(),
+        UUIDUtil.STREAM_CODEC,
+        IBroadcastLocation.STREAM_CODEC
+    ).map(
+        map -> {
+            BroadcastManager storage = new BroadcastManager();
+            map.forEach((uuid, pos) -> storage.addFeedInternal(uuid, pos, true));
+            storage.publishSnapshot();
+            return storage;
+        },
+        storage -> new HashMap<>(storage.snapshot)
+    );
+```
+</CodeGroup>
+
+## Thread Safety
+
+The `BroadcastManager` uses internal synchronization:
+
+- **Snapshot Pattern**: Fast, lock-free reads via immutable snapshot
+- **Synchronized Writes**: All modifications are synchronized
+- **Automatic Sync**: Changes are automatically synced to clients
+
+```java Thread-Safe Design
+private final Object lock = new Object();
+private final HashBiMap<UUID, IBroadcastLocation> uuidToPos = HashBiMap.create();
+private volatile Map<UUID, IBroadcastLocation> snapshot = Map.of();
+
+private void publishSnapshot() {
+    snapshot = Map.copyOf(uuidToPos);
+}
+```
+
+## Implementing Custom Location Types
+
+<Expandable title="Example: Custom Broadcast Location">
+
+```java CustomBroadcastLocation.java
+public record CustomBroadcastLocation(
+    ResourceLocation dimension,
+    BlockPos position
+) implements IBroadcastLocation {
+    
+    public static final MapCodec<CustomBroadcastLocation> CODEC = 
+        RecordCodecBuilder.mapCodec(instance -> instance.group(
+            ResourceLocation.CODEC.fieldOf("dimension")
+                .forGetter(CustomBroadcastLocation::dimension),
+            BlockPos.CODEC.fieldOf("position")
+                .forGetter(CustomBroadcastLocation::position)
+        ).apply(instance, CustomBroadcastLocation::new));
+    
+    public static final StreamCodec<ByteBuf, CustomBroadcastLocation> STREAM_CODEC =
+        StreamCodec.composite(
+            ResourceLocation.STREAM_CODEC, CustomBroadcastLocation::dimension,
+            BlockPos.STREAM_CODEC, CustomBroadcastLocation::position,
+            CustomBroadcastLocation::new
+        );
+    
+    @Override
+    public TriResult<IBroadcastSource> get(boolean isClient) {
+        // Implementation to retrieve broadcast source
+        Level level = isClient 
+            ? VistaModClient.getLocalLevelByDimension(ResourceKey.create(
+                Registries.DIMENSION, dimension))
+            : // server level lookup
+        
+        if (level == null) {
+            return TriResult.failure();
+        }
+        
+        // Get block entity or other source at position
+        return TriResult.success(source);
+    }
+    
+    @Override
+    public BroadcastLocationType type() {
+        return MyMod.CUSTOM_LOCATION_TYPE;
+    }
+    
+    @Override
+    public MutableComponent getTooltipComponent(Level level) {
+        return Component.literal("Custom: " + position.toShortString());
+    }
+}
+```
+
+Register your location type:
+
+```java Registration
+public static final BroadcastLocationType CUSTOM_LOCATION_TYPE = 
+    new BroadcastLocationType(
+        CustomBroadcastLocation.CODEC,
+        CustomBroadcastLocation.STREAM_CODEC
+    );
+
+// In your mod initialization:
+VistaMod.BROADCAST_LOCATION_REGISTRY.register(
+    "custom_location",
+    CUSTOM_LOCATION_TYPE
+);
+```
+
+</Expandable>
+
+## Related APIs
+
+- [Rendering](/api/rendering) - Understand how viewfinder feeds are rendered
+- [Textures](/api/textures) - LiveFeedTexture management for broadcasts

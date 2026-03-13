@@ -1,80 +1,196 @@
 ---
-title: "Quickstart"
-description: "Start building awesome documentation in minutes"
+title: "Quickstart Guide"
+description: "Build your first TV and camera system in minutes"
 ---
 
-## Get started in three steps
+This quickstart guide will walk you through creating your first Vista television and viewfinder system, from crafting to broadcasting.
 
-Get your documentation site running locally and make your first customization.
+## What You'll Build
 
-### Step 1: Set up your local environment
-
-<AccordionGroup>
-  <Accordion icon="copy" title="Clone your docs locally">
-    During the onboarding process, you created a GitHub repository with your docs content if you didn't already have one. You can find a link to this repository in your [dashboard](https://dashboard.mintlify.com).
-    
-    To clone the repository locally so that you can make and preview changes to your docs, follow the [Cloning a repository](https://docs.github.com/en/repositories/creating-and-managing-repositories/cloning-a-repository) guide in the GitHub docs.
-  </Accordion>
-  <Accordion icon="rectangle-terminal" title="Start the preview server">
-    1. Install the Mintlify CLI: `npm i -g mint`
-    2. Navigate to your docs directory and run: `mint dev`
-    3. Open `http://localhost:3000` to see your docs live!
-    
-    <Tip>Your preview updates automatically as you edit files.</Tip>
-  </Accordion>
-</AccordionGroup>
-
-### Step 2: Deploy your changes
-
-<AccordionGroup>
-  <Accordion icon="github" title="Install our GitHub app">
-    Install the Mintlify GitHub app from your [dashboard](https://dashboard.mintlify.com/settings/organization/github-app).
-    
-    Our GitHub app automatically deploys your changes to your docs site, so you don't need to manage deployments yourself.
-</Accordion>
-<Accordion icon="palette" title="Update your site name and colors">
-    For a first change, let's update the name and colors of your docs site.
-
-    1. Open `docs.json` in your editor.
-    2. Change the `"name"` field to your project name.
-    3. Update the `"colors"` to match your brand.
-    4. Save and see your changes instantly at `http://localhost:3000`.
-
-    <Tip>Try changing the primary color to see an immediate difference!</Tip>
-  </Accordion>
-</AccordionGroup>
-
-### Step 3: Go live
-
-<Accordion icon="rocket" title="Publish your docs">
-  1. Commit and push your changes.
-  2. Your docs will update and be live in moments!
-</Accordion>
-
-## Next steps
-
-Now that you have your docs running, explore these key features:
-
-<CardGroup cols={2}>
-
-<Card title="Write Content" icon="pen-to-square" href="/essentials/markdown">
-  Learn MDX syntax and start writing your documentation.
-</Card>
-
-<Card title="Customize style" icon="palette" href="/essentials/settings">
-  Make your docs match your brand perfectly.
-</Card>
-
-<Card title="Add code examples" icon="square-code" href="/essentials/code">
-  Include syntax-highlighted code blocks.
-</Card>
-
-<Card title="API documentation" icon="code" href="/api-reference/introduction">
-  Auto-generate API docs from OpenAPI specs.
-</Card>
-
-</CardGroup>
+By the end of this guide, you'll have:
+- A working television display
+- A camera viewfinder
+- A live broadcast feed connecting them
 
 <Note>
-  **Need help?** See our [full documentation](https://mintlify.com/docs) or join our [community](https://mintlify.com/community).
+  Make sure you have Vista and Moonlight Lib installed. See [Installation](/installation) for setup instructions.
 </Note>
+
+## Step 1: Craft Your Blocks
+
+<Steps>
+  <Step title="Craft a Television">
+    You'll need:
+    - 4 Tinted Glass Panes
+    - 1 Diamond
+    - 2 Redstone Dust
+    - 2 Any Planks
+
+    Place them in a crafting table to create your television block.
+  </Step>
+
+  <Step title="Craft a Viewfinder">
+    You'll need:
+    - 1 Spyglass
+    - 4 Iron Ingots
+    - 4 Any Planks
+
+    Combine these in a crafting table to create your viewfinder camera.
+  </Step>
+
+  <Step title="Craft a Hollow Cassette">
+    You'll need:
+    - 1 Regular Cassette (found in loot chests or from creeper drops)
+    - 1 Echo Shard
+
+    This special cassette will link your viewfinder to your TV for live broadcasts.
+  </Step>
+</Steps>
+
+## Step 2: Place and Test Your TV
+
+<Steps>
+  <Step title="Place the Television">
+    Place your television block facing the direction you want. TVs can be placed on any surface.
+
+    <Tip>
+      Place multiple TVs next to each other - they'll automatically connect to form a larger screen!
+    </Tip>
+  </Step>
+
+  <Step title="Power Your TV">
+    TVs respond to redstone power:
+    - Place a lever or redstone torch next to the TV
+    - Activate it to turn on the TV
+    - The TV will emit light level 3 when powered on
+  </Step>
+
+  <Step title="Test with a Cassette">
+    If you have a regular cassette tape:
+    1. Right-click the TV while holding the cassette
+    2. The cassette will be inserted and start playing
+    3. Right-click again to pause/resume
+    4. Sneak + right-click to eject the cassette
+  </Step>
+</Steps>
+
+## Step 3: Set Up Your Camera
+
+<Steps>
+  <Step title="Place the Viewfinder">
+    Place your viewfinder block on a wall, floor, or ceiling. The camera will point away from the surface it's attached to.
+  </Step>
+
+  <Step title="Mount the Camera">
+    Right-click the viewfinder to mount it:
+    - Your player will enter camera mode
+    - Use your mouse to look around
+    - Scroll to zoom (up to 44x zoom!)
+    - Press your sneak key to dismount
+  </Step>
+
+  <Step title="Test Camera Controls">
+    While mounted on the viewfinder:
+    - **Look Around**: Move your mouse to pan and tilt
+    - **Zoom In/Out**: Use scroll wheel
+    - **Lock View**: Right-click to lock/unlock the camera angle
+    - **Dismount**: Press your sneak key (default: Shift)
+
+    The camera has full 360° rotation and can look in any direction.
+  </Step>
+</Steps>
+
+## Step 4: Create a Live Broadcast
+
+<Steps>
+  <Step title="Link the Hollow Cassette">
+    1. Hold your hollow cassette
+    2. Right-click on the **viewfinder** you want to broadcast from
+    3. You'll see a message confirming the link
+    4. The hollow cassette now contains a live feed from that camera
+  </Step>
+
+  <Step title="Insert Into TV">
+    1. Right-click your TV while holding the linked hollow cassette
+    2. The TV will now display the live camera feed
+    3. The feed updates in real-time as you or others move the viewfinder
+  </Step>
+
+  <Step title="Watch Your Broadcast">
+    - Position your viewfinder to point at an area you want to monitor
+    - The TV will show exactly what the viewfinder sees
+    - You can have multiple TVs showing the same feed
+    - Create multiple hollow cassettes for different cameras
+
+    <Info>
+      The broadcast works across any distance and even across dimensions!
+    </Info>
+  </Step>
+</Steps>
+
+## Advanced Features
+
+Now that you have a basic system working, try these advanced features:
+
+<CardGroup cols={2}>
+  <Card title="Multi-Block TVs" icon="tv" href="/guides/multi-block-tvs">
+    Connect up to 8x8 TV blocks for massive displays
+  </Card>
+  <Card title="Custom Cassettes" icon="cassette-tape" href="/guides/creating-cassettes">
+    Create custom video content with datapacks
+  </Card>
+  <Card title="TV Features" icon="sparkles" href="/features/televisions">
+    Discover enderman interactions and comparator output
+  </Card>
+  <Card title="Camera Features" icon="video" href="/features/viewfinders">
+    Learn about filters, zoom, and analog rotation
+  </Card>
+</CardGroup>
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="TV stays off when powered">
+    - Make sure you have a redstone signal reaching the TV
+    - Check that the TV block isn't obstructed
+    - Try breaking and replacing the TV block
+  </Accordion>
+
+  <Accordion title="Camera feed is black">
+    - Make sure the viewfinder is in a loaded chunk
+    - Check that there's a valid hollow cassette in the TV
+    - Verify the hollow cassette is linked to a viewfinder
+    - Try re-linking the hollow cassette
+  </Accordion>
+
+  <Accordion title="Can't mount the viewfinder">
+    - Make sure you're not in creative mode spectator
+    - Check that you're right-clicking the correct block
+    - Verify you're not already mounted on another viewfinder
+  </Accordion>
+
+  <Accordion title="TVs won't connect into larger displays">
+    - TVs must face the same direction to connect
+    - Check `max_connected_tv_size` in config (default: 8)
+    - Try placing TVs without sneaking
+    - Remove any blocks between TVs
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<CardGroup cols={3}>
+  <Card title="Configuration" icon="gear" href="/guides/configuration">
+    Customize Vista's behavior and performance
+  </Card>
+  <Card title="Broadcasting Guide" icon="tower-broadcast" href="/features/broadcasting">
+    Master the broadcast system
+  </Card>
+  <Card title="Integrations" icon="puzzle-piece" href="/integration/overview">
+    Explore mod compatibility features
+  </Card>
+</CardGroup>
+
+<Tip>
+  Want to create a security system? Set up multiple viewfinders around your base and watch them all on a wall of TVs in your control room!
+</Tip>

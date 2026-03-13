@@ -1,0 +1,421 @@
+---
+title: 'ComputerCraft Integration'
+description: 'Control Vista blocks programmatically with ComputerCraft peripherals'
+icon: 'robot'
+---
+
+Vista provides full ComputerCraft integration, allowing you to control View Finders and Signal Projectors programmatically using Lua scripts. Both blocks expose peripheral APIs that can be accessed from ComputerCraft computers and turtles.
+
+<Note>
+This integration requires [ComputerCraft](https://www.curseforge.com/minecraft/mc-mods/cc-tweaked) to be installed. It works on both Fabric and NeoForge.
+</Note>
+
+## Supported Peripherals
+
+Vista adds two programmable peripherals:
+
+<CardGroup cols={2}>
+  <Card title="View Finder" icon="binoculars">
+    Control camera rotation and zoom level
+  </Card>
+  
+  <Card title="Signal Projector" icon="signal">
+    Set and retrieve broadcast URLs
+  </Card>
+</CardGroup>
+
+---
+
+## View Finder Peripheral
+
+The View Finder block exposes a `view_finder` peripheral that allows precise control over camera positioning and zoom.
+
+### Peripheral Type
+
+```lua
+local viewfinder = peripheral.find("view_finder")
+-- or
+local viewfinder = peripheral.wrap("left")
+```
+
+### API Reference
+
+#### setYaw(value)
+
+Sets the horizontal rotation (yaw) of the camera.
+
+<ParamField path="value" type="number" required>
+  The yaw angle in degrees. Positive values rotate right, negative values rotate left.
+</ParamField>
+
+```lua
+viewfinder.setYaw(90.0)  -- Face east
+viewfinder.setYaw(-45.0) -- Face northwest
+```
+
+#### getYaw()
+
+Returns the current yaw angle of the camera.
+
+<ResponseField name="return" type="number">
+  Current yaw angle in degrees
+</ResponseField>
+
+```lua
+local currentYaw = viewfinder.getYaw()
+print("Camera is facing: " .. currentYaw .. " degrees")
+```
+
+#### setPitch(value)
+
+Sets the vertical rotation (pitch) of the camera.
+
+<ParamField path="value" type="number" required>
+  The pitch angle in degrees. Positive values look up, negative values look down.
+</ParamField>
+
+```lua
+viewfinder.setPitch(45.0)  -- Look up
+viewfinder.setPitch(-30.0) -- Look down
+```
+
+#### getPitch()
+
+Returns the current pitch angle of the camera.
+
+<ResponseField name="return" type="number">
+  Current pitch angle in degrees
+</ResponseField>
+
+```lua
+local currentPitch = viewfinder.getPitch()
+print("Camera pitch: " .. currentPitch .. " degrees")
+```
+
+#### setZoom(zoom)
+
+Sets the zoom level of the camera.
+
+<ParamField path="zoom" type="integer" required>
+  Zoom level between 1 and 44. Higher values provide greater magnification.
+</ParamField>
+
+<Info>
+Zoom values are automatically clamped between 1 (minimum) and 44 (maximum).
+</Info>
+
+```lua
+viewfinder.setZoom(1)   -- Minimum zoom
+viewfinder.setZoom(22)  -- Medium zoom
+viewfinder.setZoom(44)  -- Maximum zoom
+```
+
+#### getZoom()
+
+Returns the current zoom level.
+
+<ResponseField name="return" type="integer">
+  Current zoom level (1-44)
+</ResponseField>
+
+```lua
+local currentZoom = viewfinder.getZoom()
+print("Current zoom: " .. currentZoom .. "x")
+```
+
+---
+
+## Signal Projector Peripheral
+
+The Signal Projector block exposes a `cassette_burner` peripheral that manages broadcast URLs.
+
+<Note>
+Despite the peripheral type name "cassette_burner", this controls the Signal Projector block.
+</Note>
+
+### Peripheral Type
+
+```lua
+local projector = peripheral.find("cassette_burner")
+-- or
+local projector = peripheral.wrap("right")
+```
+
+### API Reference
+
+#### setUrl(url)
+
+Sets the broadcast URL for the signal projector.
+
+<ParamField path="url" type="string" required>
+  The URL string to broadcast. Can be a video URL, stream URL, or any supported format.
+</ParamField>
+
+```lua
+projector.setUrl("https://example.com/video.mp4")
+projector.setUrl("rtsp://stream.example.com/live")
+```
+
+#### getUrl()
+
+Returns the current broadcast URL.
+
+<ResponseField name="return" type="string">
+  Current broadcast URL, or empty string if not set
+</ResponseField>
+
+```lua
+local currentUrl = projector.getUrl()
+print("Broadcasting: " .. currentUrl)
+```
+
+---
+
+## Example Programs
+
+### Security Camera System
+
+Create an automated security camera that pans back and forth:
+
+```lua
+local viewfinder = peripheral.find("view_finder")
+
+if not viewfinder then
+  print("No view finder found!")
+  return
+end
+
+-- Set initial zoom
+viewfinder.setZoom(10)
+
+local minYaw = -90
+local maxYaw = 90
+local step = 2
+local currentYaw = minYaw
+local direction = 1
+
+print("Security camera active")
+
+while true do
+  -- Update yaw
+  currentYaw = currentYaw + (step * direction)
+  viewfinder.setYaw(currentYaw)
+  
+  -- Reverse direction at limits
+  if currentYaw >= maxYaw then
+    direction = -1
+  elseif currentYaw <= minYaw then
+    direction = 1
+  end
+  
+  -- Small delay
+  os.sleep(0.1)
+end
+```
+
+### URL Playlist Manager
+
+Cycle through multiple video URLs on a Signal Projector:
+
+```lua
+local projector = peripheral.find("cassette_burner")
+
+if not projector then
+  print("No signal projector found!")
+  return
+end
+
+local playlist = {
+  "https://example.com/video1.mp4",
+  "https://example.com/video2.mp4",
+  "https://example.com/video3.mp4"
+}
+
+local currentIndex = 1
+
+print("Playlist manager started")
+
+while true do
+  local url = playlist[currentIndex]
+  projector.setUrl(url)
+  print("Now playing: " .. url)
+  
+  -- Wait 5 minutes before next video
+  os.sleep(300)
+  
+  -- Move to next video
+  currentIndex = currentIndex + 1
+  if currentIndex > #playlist then
+    currentIndex = 1
+  end
+end
+```
+
+### 360° Panorama Scanner
+
+Scan a full 360° view at different zoom levels:
+
+```lua
+local viewfinder = peripheral.find("view_finder")
+
+if not viewfinder then
+  print("No view finder found!")
+  return
+end
+
+function scanPanorama(zoom, pitchAngle)
+  viewfinder.setZoom(zoom)
+  viewfinder.setPitch(pitchAngle)
+  
+  print("Scanning at zoom " .. zoom .. ", pitch " .. pitchAngle)
+  
+  for yaw = 0, 360, 30 do
+    viewfinder.setYaw(yaw)
+    print("  Yaw: " .. yaw)
+    os.sleep(1)
+  end
+end
+
+print("Starting 360 scan...")
+
+-- Scan at three different elevations
+scanPanorama(5, -30)  -- Looking down
+scanPanorama(5, 0)    -- Looking straight
+scanPanorama(5, 30)   -- Looking up
+
+print("Scan complete!")
+```
+
+### Remote Camera Control
+
+Control camera from rednet messages:
+
+```lua
+local viewfinder = peripheral.find("view_finder")
+local modem = peripheral.find("modem")
+
+if not viewfinder or not modem then
+  print("Missing required peripherals!")
+  return
+end
+
+rednet.open(peripheral.getName(modem))
+
+print("Remote camera control active")
+print("Commands: yaw <angle>, pitch <angle>, zoom <level>")
+
+while true do
+  local senderID, message = rednet.receive()
+  
+  local command, value = message:match("(%w+)%s+([%d.-]+)")
+  
+  if command and value then
+    value = tonumber(value)
+    
+    if command == "yaw" then
+      viewfinder.setYaw(value)
+      rednet.send(senderID, "Yaw set to " .. value)
+    elseif command == "pitch" then
+      viewfinder.setPitch(value)
+      rednet.send(senderID, "Pitch set to " .. value)
+    elseif command == "zoom" then
+      viewfinder.setZoom(value)
+      rednet.send(senderID, "Zoom set to " .. value)
+    end
+  else
+    rednet.send(senderID, "Invalid command")
+  end
+end
+```
+
+---
+
+## Technical Implementation
+
+Vista registers peripherals for both Fabric and NeoForge using platform-specific APIs:
+
+### Peripheral Registration
+
+```java
+// Fabric implementation
+PeripheralLookup.get().registerForBlockEntity((tile, direction) -> {
+    if (tile.ccPeripheral == null) 
+        tile.ccPeripheral = new ViewFinderPeripheral(tile);
+    return (IPeripheral) tile.ccPeripheral;
+}, VistaMod.VIEWFINDER_TILE.get());
+```
+
+### Client Synchronization
+
+All peripheral methods that modify state automatically synchronize with connected clients:
+
+```java
+@LuaFunction
+public void setYaw(double value) {
+    tile.setYaw(acc, (float) value);
+    acc.updateClients();  // Sync to all viewers
+}
+```
+
+<Info>
+Changes made via ComputerCraft peripherals are immediately visible to all players viewing the camera feed.
+</Info>
+
+---
+
+## Best Practices
+
+<Steps>
+  <Step title="Cache Peripheral References">
+    Find and store peripheral references once at startup instead of repeatedly searching:
+    
+    ```lua
+    local viewfinder = peripheral.find("view_finder")
+    -- Use viewfinder throughout your program
+    ```
+  </Step>
+  
+  <Step title="Add Delays Between Updates">
+    Use `os.sleep()` to prevent excessive updates:
+    
+    ```lua
+    viewfinder.setYaw(angle)
+    os.sleep(0.05)  -- Small delay
+    ```
+  </Step>
+  
+  <Step title="Validate Zoom Ranges">
+    Although zoom is clamped automatically, validate your inputs:
+    
+    ```lua
+    local zoom = math.max(1, math.min(44, userInput))
+    viewfinder.setZoom(zoom)
+    ```
+  </Step>
+  
+  <Step title="Error Handling">
+    Always check if peripherals are found:
+    
+    ```lua
+    if not viewfinder then
+      error("View finder not found!")
+    end
+    ```
+  </Step>
+</Steps>
+
+---
+
+## Source Code Reference
+
+For developers interested in implementation details:
+
+- `ViewFinderPeripheral.java` - View Finder API implementation
+- `SignalProjectorPeripheral.java` - Signal Projector API implementation  
+- `CCCompat.java` - Platform abstraction layer
+- `fabric/CCCompatImpl.java` - Fabric peripheral registration
+- `neoforge/CCCompatImpl.java` - NeoForge peripheral registration
+
+<Card title="View on GitHub" icon="github" href="https://github.com/MehVahdJukaar/vista">
+  Explore the full ComputerCraft integration source code
+</Card>

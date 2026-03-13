@@ -1,0 +1,458 @@
+---
+title: Live Camera Feeds
+description: Set up live camera feeds in Vista using View Finder blocks
+---
+
+Vista's View Finder blocks create live camera feeds that can be broadcast to television displays. This guide covers installation, configuration, and optimization of live feeds.
+
+## Overview
+
+The View Finder is a block that captures a live view of the game world and broadcasts it to TVs. It acts as a security camera, allowing you to monitor areas remotely or create cinematic experiences.
+
+<Note>
+Live feeds are more resource-intensive than static cassettes. See [Performance Optimization](#performance-optimization) for tips on maintaining good frame rates.
+</Note>
+
+## Setting Up a Live Feed
+
+<Steps>
+  <Step title="Place a View Finder">
+    Craft and place a View Finder block in the location you want to monitor. The View Finder can be rotated and angled to point in any direction.
+  </Step>
+
+  <Step title="Configure the Camera">
+    Right-click the View Finder to open the camera control interface. You can adjust:
+    - **Yaw (horizontal rotation)**: Pan left and right
+    - **Pitch (vertical rotation)**: Tilt up and down  
+    - **Zoom level**: From 1× to 44× magnification
+    - **Lock state**: Prevent further adjustments
+  </Step>
+
+  <Step title="Link to a Cassette">
+    Create a special cassette tape that links to your View Finder's UUID. This cassette will display the live feed when inserted into a TV.
+  </Step>
+
+  <Step title="Insert and Power">
+    Insert the linked cassette into a TV and power it on. The TV will now display the live camera feed.
+  </Step>
+</Steps>
+
+## View Finder Controls
+
+### Camera Movement
+
+The View Finder can be controlled directly through its interface:
+
+- **Yaw Range**: Adjustable based on mounting
+- **Pitch Range**: Typically -90° to +90° (straight down to straight up)
+- **Zoom Levels**: 1× to 44× (MAX_ZOOM = 44)
+
+### Field of View
+
+The camera's field of view (FOV) is calculated based on zoom:
+
+```java
+// Base FOV is 70 degrees
+float baseFOV = 70;
+
+// Zoom modifier calculation
+float spyglassZoom = 0.1f;
+float maxZoom = spyglassZoom / 5;  // 0.02
+float normalizedZoom = (zoom - 1) / (MAX_ZOOM - 1);
+
+// Final FOV with easing
+float fovModifier = lerp(normalizedZoom^2, 1, maxZoom);
+float finalFOV = baseFOV * fovModifier;
+```
+
+At maximum zoom (44×), the FOV becomes extremely narrow for detailed surveillance.
+
+### Locking the Camera
+
+Enable the lock to prevent accidental camera movement:
+
+- **Unlocked**: Players can adjust yaw, pitch, and zoom
+- **Locked**: Camera position is fixed, but still broadcasts
+
+<Tip>
+Lock cameras in public areas to prevent griefing or unwanted adjustments.
+</Tip>
+
+## Filters and Effects
+
+### Glass Pane Filters
+
+Insert stained glass panes into the View Finder to add color filters:
+
+```java
+// View Finder accepts stained glass panes
+if (item instanceof BlockItem bi && 
+    bi.getBlock() instanceof StainedGlassPaneBlock) {
+    // Color filter applied to live feed
+}
+```
+
+Different glass colors create different visual effects:
+- Red glass: Infrared camera effect
+- Blue glass: Cool/night vision tone
+- Green glass: Classic security camera look
+- Gray glass: Monochrome filter
+
+### Shader Effects (Optional)
+
+If you have Supplementaries installed, View Finders can accept shader items for additional visual effects.
+
+## Live Feed Rendering
+
+### How It Works
+
+Vista renders live feeds using an off-screen rendering system:
+
+1. **Capture State**: The camera's position, rotation, and FOV are captured
+2. **Off-Screen Render**: The world is rendered from the camera's perspective to a texture
+3. **Texture Update**: The TV displays this texture, updated at the configured FPS
+4. **Multi-TV Support**: Multiple TVs can show the same feed or different feeds
+
+### Render Sequence
+
+```java
+// Camera setup for live feed rendering
+public static void setupSceneCamera(
+    ViewFinderBlockEntity tile,
+    Camera camera, 
+    float partialTicks
+) {
+    // Position camera at View Finder location
+    BlockPos pos = tile.getBlockPos();
+    
+    // Apply yaw and pitch
+    float yaw = tile.getYaw(partialTicks);
+    float pitch = tile.getPitch(partialTicks);
+    
+    // Apply zoom (affects FOV)
+    float fov = tile.getFOV();
+    
+    // Render world from this perspective
+}
+```
+
+### Texture Management
+
+Each View Finder creates a unique live feed texture:
+
+- **Texture Size**: Based on TV screen size × resolution scale
+- **UUID Tracking**: Each View Finder has a unique identifier
+- **Shared Textures**: Multiple TVs showing the same feed share one texture
+- **Dynamic Updates**: Textures update at configured FPS rate
+
+## Performance Optimization
+
+Live feeds are GPU and CPU intensive. Use these settings to optimize performance:
+
+### Critical Settings
+
+<Tabs>
+  <Tab title="Performance">
+    ```toml vista-client.toml
+    [television.live_feed]
+        # Reduce update rate (default: 10 FPS)
+        update_fps = 5.0
+        
+        # Lower minimum FPS for throttling
+        min_update_fps = 2.0
+        
+        # Reduce render distance (default: 64)
+        render_distance = 32
+        
+        # Lower resolution (default: 8)
+        resolution_scale = 4
+    ```
+    
+    **Best for**: Low-end systems, many cameras
+  </Tab>
+  
+  <Tab title="Balanced">
+    ```toml vista-client.toml
+    [television.live_feed]
+        # Standard update rate
+        update_fps = 10.0
+        
+        # Minimum for smooth playback  
+        min_update_fps = 4.0
+        
+        # Moderate render distance
+        render_distance = 64
+        
+        # Standard resolution
+        resolution_scale = 8
+    ```
+    
+    **Best for**: Mid-range systems, few cameras
+  </Tab>
+  
+  <Tab title="Quality">
+    ```toml vista-client.toml
+    [television.live_feed]
+        # Smooth update rate
+        update_fps = 20.0
+        
+        # Higher minimum FPS
+        min_update_fps = 10.0
+        
+        # Extended render distance
+        render_distance = 128
+        
+        # High resolution
+        resolution_scale = 16
+    ```
+    
+    **Best for**: High-end systems, few cameras
+  </Tab>
+</Tabs>
+
+### Understanding Update FPS
+
+Live feeds update at a configured rate, independent of game FPS:
+
+```java
+// Update FPS (default: 10.0)
+// How many times per second the feed texture updates
+// Lower = better performance, choppier video
+// Higher = worse performance, smoother video
+```
+
+<Note>
+The mod automatically throttles update rate if rendering takes too long. `throttling_update_ms` (default: 16.66ms) controls when throttling begins.
+</Note>
+
+### FPS Throttling
+
+Vista includes intelligent FPS throttling:
+
+```toml
+[television.live_feed]
+    # Start throttling if updates take longer than this (milliseconds)
+    # 16.66ms = 60 FPS, 33.33ms = 30 FPS
+    throttling_update_ms = 16.66
+    
+    # Never drop below this update rate
+    min_update_fps = 4.0
+```
+
+When enabled:
+1. Measures how long live feed updates take
+2. If updates exceed `throttling_update_ms`, reduces update rate
+3. Never drops below `min_update_fps`
+4. Automatically recovers when performance improves
+
+### Distance-Based Updates
+
+Feeds update at different rates based on player distance:
+
+```toml
+[television.live_feed]
+    # Distance from TV after which feed updates in real-time
+    update_distance = 20.0
+```
+
+- **Within range** (< 20 blocks): Full update rate
+- **Beyond range** (> 20 blocks): Reduced update rate
+- **Not loaded**: No updates (texture frozen)
+
+### Render Distance
+
+The camera's render distance affects what appears in the feed:
+
+```toml
+[television.visuals]
+    # How far the camera can see (in blocks)
+    # Lower values significantly improve performance
+    render_distance = 64  # Range: 1-256
+```
+
+<Warning>
+Render distance is one of the most impactful performance settings. Halving the render distance can double performance for live feeds.
+</Warning>
+
+## Advanced Configuration
+
+### Visual Effects
+
+```toml vista-client.toml
+[television.visuals]
+    # Enable TV screen effects
+    screen_effects = true
+    
+    # Pixel density (pixels per block)
+    pixel_density = 1.37
+    
+    # Constant pixel density for multi-block TVs
+    constant_pixel_density = true
+    
+    # Vignette effect (0.0 to 1.0)
+    vignette = 1.0
+    
+    # Turn on/off animation
+    turn_off_animation = true
+```
+
+### Date/Time Overlay
+
+Display date and time on the live feed:
+
+```toml
+[television.live_feed]
+    # Draw timestamp on feed (security camera style)
+    draw_date = false
+```
+
+When enabled, shows the in-game date and time overlaid on the video.
+
+### Debug Rendering
+
+Enable debug information for troubleshooting:
+
+```toml
+[television.live_feed]
+    # Show debug info (FPS, render time, etc.)
+    render_debug = false
+```
+
+## Multiple Cameras
+
+### Camera Networks
+
+You can set up multiple View Finders for different monitoring purposes:
+
+1. **Security System**: Cameras at entry points
+2. **Farm Monitoring**: Cameras watching crop growth
+3. **Mob Farm Views**: Observe spawner efficiency
+4. **Scenic Views**: Capture beautiful vistas
+
+### Performance with Multiple Feeds
+
+Each active live feed has a performance cost:
+
+- **1-2 feeds**: Minimal impact on most systems
+- **3-5 feeds**: Noticeable performance reduction
+- **5+ feeds**: Significant performance impact
+
+<Tip>
+Consider reducing `update_fps` when running multiple cameras. Even at 5 FPS, security cameras are still effective.
+</Tip>
+
+## Shader Compatibility
+
+### Iris/Sodium Support
+
+Vista includes special handling for Iris shaders:
+
+```toml
+# Iris-specific configuration
+[iris_compat]
+    # Attempt to disable shaders in live feed view
+    disable_iris_in_feed = false
+```
+
+Iris shaders can cause issues with live feed rendering. This option attempts to disable shaders for camera rendering only.
+
+### Distant Horizons
+
+Vista supports Distant Horizons LOD rendering in live feeds, but this significantly impacts performance.
+
+## Enderman Detection
+
+Live feeds can detect when Endermen are visible:
+
+- Endermen that appear in the camera feed become aware they're being watched
+- The TV screen displays a special effect when viewing an Enderman
+- Endermen will freeze and potentially become aggressive
+
+<Warning>
+Monitoring Endermen through cameras can be dangerous! They can detect the observation and may teleport to the TV location.
+</Warning>
+
+## Troubleshooting
+
+### Black Screen on TV
+
+<Steps>
+  <Step title="Check Cassette Link">
+    Ensure the cassette is properly linked to the View Finder's UUID.
+  </Step>
+  
+  <Step title="Verify Chunk Loading">
+    The View Finder's chunk must be loaded for the feed to work.
+  </Step>
+  
+  <Step title="Check Client Config">
+    Verify `screen_effects` is enabled in client config.
+  </Step>
+  
+  <Step title="Test with Default Settings">
+    Reset client config to defaults to rule out configuration issues.
+  </Step>
+</Steps>
+
+### Poor Performance
+
+1. **Reduce render_distance**: Try 32 or even 16 blocks
+2. **Lower update_fps**: 5 FPS is usually acceptable for security cameras
+3. **Decrease resolution_scale**: Try 4 instead of 8
+4. **Limit active cameras**: Only power TVs showing feeds you're actively watching
+5. **Disable shader effects**: Set `screen_effects = false`
+
+### Choppy Video
+
+- Increase `update_fps` (but this reduces performance)
+- Increase `throttling_update_ms` to allow longer render times
+- Check if you're beyond `update_distance` from the TV
+- Ensure the game itself is running at good FPS
+
+### Feed Not Updating
+
+- Confirm the TV is within `update_distance`
+- Check that the TV is powered on
+- Verify the cassette is correctly linked
+- Ensure the View Finder chunk is loaded
+
+## Best Practices
+
+### Security Cameras
+
+```toml
+# Optimized for security/surveillance
+[television.live_feed]
+    update_fps = 5.0
+    render_distance = 32
+    resolution_scale = 4
+    draw_date = true
+```
+
+### Cinematic Cameras
+
+```toml
+# Optimized for quality/cinematics  
+[television.live_feed]
+    update_fps = 20.0
+    render_distance = 128
+    resolution_scale = 16
+    draw_date = false
+```
+
+### Multi-Camera Setups
+
+```toml
+# Balanced for multiple cameras
+[television.live_feed]
+    update_fps = 7.0
+    render_distance = 48
+    resolution_scale = 6
+    min_update_fps = 3.0
+```
+
+## See Also
+
+- [Configuration](/guides/configuration) - Complete configuration reference
+- [Multi-Block TVs](/guides/multi-block-tvs) - Display feeds on larger screens
+- [Creating Cassettes](/guides/creating-cassettes) - Create custom cassette items

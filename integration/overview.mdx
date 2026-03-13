@@ -1,0 +1,94 @@
+---
+title: "Mod Integrations"
+description: "Overview of Vista's compatibility with other Minecraft mods"
+icon: "puzzle-piece"
+---
+
+Vista seamlessly integrates with several popular Minecraft mods to enhance functionality and provide better compatibility. These integrations are automatically detected and enabled when the corresponding mods are installed.
+
+## Core Integrations
+
+<CardGroup cols={2}>
+  <Card title="ComputerCraft" icon="robot" href="/integration/computercraft">
+    Control View Finders and Signal Projectors programmatically with Lua scripts
+  </Card>
+  
+  <Card title="Exposure" icon="camera" href="/integration/supplementaries">
+    Display photographs and albums on Vista's screens with Picture Tape items
+  </Card>
+  
+  <Card title="Supplementaries" icon="palette" href="/integration/supplementaries">
+    Custom shader effects and seasonal features for enhanced visuals
+  </Card>
+  
+  <Card title="JEI" icon="book" href="/integration/other-mods#jei">
+    Just Enough Items integration for better item browsing
+  </Card>
+</CardGroup>
+
+## Performance & Rendering
+
+<CardGroup cols={2}>
+  <Card title="Iris Shaders" icon="eye" href="/integration/other-mods#iris-shaders">
+    Disable shaders in camera feeds for better compatibility
+  </Card>
+  
+  <Card title="Sodium" icon="bolt" href="/integration/other-mods#sodium">
+    Performance optimization compatibility (includes Embeddium)
+  </Card>
+  
+  <Card title="Distant Horizons" icon="mountain" href="/integration/other-mods#distant-horizons">
+    Control LOD rendering in camera views
+  </Card>
+</CardGroup>
+
+## Detection System
+
+Vista automatically detects installed mods at runtime using the `CompatHandler` class:
+
+```java
+public static final boolean EXPOSURE = PlatHelper.isModLoaded("exposure");
+public static final boolean DISTANT_HORIZONS = PlatHelper.isModLoaded("distanthorizons");
+public static final boolean COMPUTER_CRAFT = PlatHelper.isModLoaded("computercraft");
+public static final boolean SUPPLEMENTARIES = PlatHelper.isModLoaded("supplementaries");
+public static final boolean IRIS = PlatHelper.isModLoaded("iris") || PlatHelper.isModLoaded("oculus");
+public static final boolean SODIUM = PlatHelper.isModLoaded("sodium") || PlatHelper.isModLoaded("embeddium");
+```
+
+<Note>
+All integrations are optional and will only activate when the corresponding mod is installed. Vista works perfectly fine without any of these mods.
+</Note>
+
+## Supported Platforms
+
+Most integrations work on both **Fabric** and **NeoForge** mod loaders, with platform-specific implementations where necessary:
+
+- **ComputerCraft**: Full support on both platforms with peripheral APIs
+- **Exposure**: Cross-platform photograph display system
+- **Iris/Oculus**: Shader compatibility on both loaders
+- **Sodium/Embeddium**: Performance mod variants for different platforms
+
+<Info>
+For detailed information about each integration, click on the cards above or navigate to the specific integration page.
+</Info>
+
+## Configuration
+
+Some integrations provide configurable options:
+
+- **Distant Horizons**: LOD quality settings for camera feeds
+- **Iris**: Toggle shader disabling in Vista screens
+
+These options can be found in Vista's configuration file after the respective mods are loaded.
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="ComputerCraft API" icon="code" href="/integration/computercraft">
+    Learn the Lua API for controlling Vista blocks
+  </Card>
+  
+  <Card title="Configuration" icon="gear" href="/guides/configuration">
+    Adjust settings for compatibility
+  </Card>
+</CardGroup>

@@ -1,0 +1,327 @@
+---
+title: Viewfinders
+description: Camera system for creating live video feeds and surveillance setups
+---
+
+## Overview
+
+Viewfinders are camera blocks that allow you to look through them and create live video feeds. They can be linked to hollow cassettes for broadcasting to TVs, making them perfect for security systems, surveillance, or creative camera setups.
+
+## Placement
+
+Viewfinders can be placed on any block face:
+
+- **Floors** (facing up)
+- **Ceilings** (facing down)  
+- **Walls** (facing horizontally)
+
+The viewfinder's camera points in the direction opposite to the face you clicked.
+
+**Block properties:**
+- Directional placement (all 6 directions)
+- Rotation state for model orientation
+- Small collision box (allows walking through when mounted)
+
+**Source reference:** `ViewFinderBlock.java:51-56`, `ViewFinderBlock.java:125-128`
+
+### Placement Direction
+
+When you place a viewfinder, it automatically orientates to face the nearest player direction:
+
+<Steps>
+  <Step title="Click on surface">
+    Right-click on any block face to place the viewfinder.
+  </Step>
+  
+  <Step title="Auto-orientation">
+    The camera automatically rotates to face toward/away from you based on your position.
+  </Step>
+  
+  <Step title="Fine-tune later">
+    Use the mounting interface to adjust pitch and yaw precisely.
+  </Step>
+</Steps>
+
+**Source reference:** `ViewFinderBlock.java:84-99`
+
+## Using the Camera
+
+### Mounting the Viewfinder
+
+<Info>
+Right-click the viewfinder (without sneaking) to enter camera mode.
+</Info>
+
+When you mount a viewfinder:
+- Your view switches to the camera's perspective
+- You can control the camera's rotation and zoom
+- The viewfinder's collision box disappears so you don't clip through it
+- A control message appears: "Press [key] to Dismount, [key] to Lock/Unlock"
+
+**Source reference:** `ViewFinderBlockEntity.java:128-143`, `ViewFinderBlock.java:177-181`
+
+### Camera Controls
+
+<CardGroup cols={2}>
+  <Card title="Pitch & Yaw Rotation" icon="arrows">
+    **Mouse movement** controls camera direction
+    
+    - Full 360° horizontal rotation (yaw)
+    - Full 180° vertical rotation (pitch)
+    - Smooth interpolation between updates
+  </Card>
+  
+  <Card title="Zoom" icon="magnifying-glass">
+    **Scroll wheel** adjusts zoom level
+    
+    - Range: 1 to 44 zoom levels
+    - Base FOV: 70°
+    - Maximum zoom: ~1.4° (5× spyglass zoom)
+  </Card>
+</CardGroup>
+
+#### Zoom Mechanics
+
+The zoom system uses an easing function for smooth zooming:
+
+```java
+// ViewFinderBlockEntity.java:231-246
+public static final int MAX_ZOOM = 44;
+private static final float BASE_FOV = 70;
+
+public float getFOV() {
+    return BASE_FOV * getFOVModifier();
+}
+
+public float getFOVModifier() {
+    float spyglassZoom = 0.1f;
+    float maxZoom = spyglassZoom / 5;
+    float normalizedZoom = getNormalizedZoomFactor();
+    return Mth.lerp(normalizedZoom, 1, maxZoom);
+}
+```
+
+<Note>
+The zoom uses quadratic easing, making fine adjustments easier at high zoom levels.
+</Note>
+
+### Lock Feature
+
+Press the lock key (default: Shift) while mounted to lock the camera:
+
+- **Locked:** Camera rotation is frozen, preventing accidental movement
+- **Unlocked:** Camera can be freely rotated
+
+Perfect for setting up fixed surveillance angles!
+
+**Source reference:** `ViewFinderBlockEntity.java:169-171`, `ViewFinderBlockEntity.java:217-219`
+
+### Dismounting
+
+Press your dismount key (default: Left Shift or Sneak key) to exit camera mode.
+
+**Source reference:** Message key `message.vista.viewfinder.control` in `en_us.json:26`
+
+## Linking Hollow Cassettes
+
+<Info>
+Right-click a viewfinder with a hollow cassette to link them for live broadcasting.
+</Info>
+
+### Linking Process
+
+<Steps>
+  <Step title="Obtain a hollow cassette">
+    Craft or obtain a hollow cassette item.
+  </Step>
+  
+  <Step title="Right-click viewfinder">
+    Use the hollow cassette on the viewfinder block (not the mounting interface).
+  </Step>
+  
+  <Step title="Cassette is linked">
+    The cassette becomes enchanted (glowing effect) and stores the viewfinder's UUID.
+  </Step>
+  
+  <Step title="Play on TV">
+    Insert the linked hollow cassette into a powered TV to see the live feed.
+  </Step>
+</Steps>
+
+**Source reference:** `HollowCassetteItem.java:29-41`
+
+```java
+public InteractionResult useOn(UseOnContext context) {
+    Level level = context.getLevel();
+    BlockEntity be = level.getBlockEntity(context.getClickedPos());
+    if (be instanceof IBroadcastSource feed) {
+        if (!level.isClientSide) {
+            ItemStack stack = context.getItemInHand();
+            stack.set(VistaMod.LINKED_FEED_COMPONENT.get(), feed.getUUID());
+        }
+        return InteractionResult.sidedSuccess(level.isClientSide);
+    }
+    return super.useOn(context);
+}
+```
+
+### Broadcast System
+
+Each viewfinder has a unique UUID that identifies its video feed:
+
+- The `BroadcastManager` tracks all viewfinder UUIDs and their locations
+- Hollow cassettes store the viewfinder UUID they're linked to
+- TVs query the `BroadcastManager` to find the viewfinder and stream its view
+
+**Source reference:** `ViewFinderBlockEntity.java:43`, `BroadcastManager.java:144-147`
+
+### Tooltip Information
+
+Linked hollow cassettes show connection status:
+
+- **"Linked to [X, Y, Z]"** - Viewfinder location (same dimension)
+- **"Linked somewhere in [Dimension]"** - Different dimension
+- **"Linked to invalid location"** - Viewfinder no longer exists
+
+**Source reference:** `HollowCassetteItem.java:49-68`, `en_us.json:8-10`
+
+## Filters and Shaders
+
+<Info>
+You can add filters to viewfinders by inserting items.
+</Info>
+
+### Stained Glass Panes
+
+Right-click while **sneaking** to insert items:
+
+- **Stained glass panes** - Apply color tints to the video feed
+- Remove by sneaking + right-clicking with an empty hand
+
+**Source reference:** `ViewFinderBlockEntity.java:117-120`, `ViewFinderBlockEntity.java:128-134`
+
+### Supplementaries Integration
+
+If the Supplementaries mod is installed, you can also insert:
+
+- **Shaders** from Supplementaries for special visual effects
+
+**Source reference:** `ViewFinderBlockEntity.java:119`
+
+## Analog Rotation Support
+
+<Info>
+Viewfinders support analog rotation from wrenches and other rotation tools.
+</Info>
+
+The viewfinder implements `IAnalogRotatable`, allowing smooth rotation with compatible tools:
+
+```java
+// ViewFinderBlock.java:209-223
+public void rotateAnalog(BlockState state, Level level, BlockPos pos, 
+                         Direction face, boolean ccw, float speed) {
+    if (level.getBlockEntity(pos) instanceof ViewFinderBlockEntity tile) {
+        speed = speed * 0.01f;
+        float deltaAngle = -speed * (ccw ? -1 : 1);
+        Vector3f rotAxis = face.step();
+        Vector3f facingVec = tile.selfAccess.getGlobalFacing(0).toVector3f();
+        Quaternionf q = new Quaternionf().rotateAxis(deltaAngle, rotAxis);
+        facingVec.rotate(q);
+        Vec3 newDir = new Vec3(facingVec);
+        tile.selfAccess.setGlobalFacing(newDir, true);
+        tile.setChanged();
+    }
+}
+```
+
+### Compatible Tools
+
+- **Supplementaries Wrench** - Analog rotation support
+- Other mods implementing rotation interfaces
+
+**Rotation restrictions:** Cannot rotate around the axis the viewfinder is mounted on.
+
+**Source reference:** `ViewFinderBlock.java:226-228`
+
+## Configuration and Performance
+
+### Rendering Optimization
+
+The viewfinder's live feed system is optimized:
+
+- **Client-side rendering:** Video source rendered only when needed
+- **Server-side updates:** Camera position updates staggered (every 27 ticks) when checking enderman
+- **Near plane:** 0.05 blocks for close-up viewing
+
+**Source reference:** `ViewFinderBlockEntity.java:38`, `TVBlockEntity.java:217-219`
+
+### Network Synchronization
+
+Camera attributes synchronize with the server:
+
+```java
+// ViewFinderAccess.Block.java:114-119
+public void syncToServer(boolean removeOwner) {
+    NetworkHelper.sendToServer(new ServerBoundSyncViewFinderPacket(
+        blockEntity.getYaw(), blockEntity.getPitch(), 
+        blockEntity.getZoomLevel(), blockEntity.isLocked(),
+        removeOwner, TileOrEntityTarget.of(this.blockEntity)
+    ));
+}
+```
+
+**Synced properties:**
+- Yaw (horizontal rotation)
+- Pitch (vertical rotation)  
+- Zoom level
+- Lock state
+- Current user UUID
+
+## Technical Details
+
+### UUID System
+
+Each viewfinder generates a unique UUID on creation:
+
+```java
+// ViewFinderBlockEntity.java:60-65
+public ViewFinderBlockEntity(BlockPos pos, BlockState state) {
+    super(VistaMod.VIEWFINDER_TILE.get(), pos, state);
+    this.myUUID = UUID.randomUUID();
+    this.videoSource = new LiveFeedVideoSource(this);
+    this.selfAccess = ViewFinderAccess.block(this);
+}
+```
+
+The UUID is saved to NBT and persists across world reloads:
+
+**Source reference:** `ViewFinderBlockEntity.java:85-92`, `ViewFinderBlockEntity.java:102-109`
+
+### View Matrix Calculation
+
+The camera's view direction is calculated using pitch and yaw:
+
+```java
+// ViewFinderAccess.java:65-69
+default Vec3 getGlobalFacing(float partialTicks) {
+    var cannon = this.getInternalTile();
+    return Vec3.directionFromRotation(
+        cannon.getPitch(partialTicks),
+        cannon.getYaw(partialTicks) - this.getGlobalYawOffset(partialTicks)
+    );
+}
+```
+
+**Interpolation:** Previous and current rotation values are lerped for smooth movement.
+
+**Source reference:** `ViewFinderBlockEntity.java:149-163`
+
+### Multi-User Prevention
+
+Viewfinders implement `IOneUserInteractable` to prevent multiple players from controlling the same camera:
+
+- Only one player can mount a viewfinder at a time
+- Current user tracked by UUID
+- 7-block maximum interaction distance
+
+**Source reference:** `ViewFinderAccess.Block.java:122-127`

@@ -1,0 +1,368 @@
+---
+title: Creating Custom Cassettes
+description: Create custom cassette tapes for Vista televisions using datapacks
+---
+
+Vista allows you to create custom cassette tapes through datapacks. This guide covers the JSON format, available options, and how to add your own video content.
+
+## Overview
+
+Cassette tapes are defined using JSON files in a datapack's `vista/cassette_tape` directory. Each cassette references a video asset and defines visual properties like color and comparator output.
+
+## Quick Start
+
+<Steps>
+  <Step title="Create the Datapack Structure">
+    Create the following folder structure in your world's `datapacks` directory:
+    
+    ```
+    my_cassette_pack/
+    ├── pack.mcmeta
+    └── data/
+        └── my_namespace/
+            └── vista/
+                └── cassette_tape/
+                    └── my_cassette.json
+    ```
+  </Step>
+
+  <Step title="Create pack.mcmeta">
+    Add the pack metadata file:
+    
+    ```json pack.mcmeta
+    {
+      "pack": {
+        "pack_format": 48,
+        "description": "Custom Vista cassette tapes"
+      }
+    }
+    ```
+  </Step>
+
+  <Step title="Define Your Cassette">
+    Create a cassette JSON file with the required fields:
+    
+    ```json my_cassette.json
+    {
+      "asset_id": "my_namespace:my_video",
+      "color": "0xff10d3c2"
+    }
+    ```
+  </Step>
+
+  <Step title="Add Video Assets">
+    Place your video asset files in the appropriate location (see [Video Assets](#video-assets) section).
+  </Step>
+</Steps>
+
+## JSON Format
+
+Cassette tape definitions use the following schema:
+
+### Required Fields
+
+<CodeGroup>
+```json Minimal Example
+{
+  "asset_id": "vista:color_bars",
+  "color": "0xffaabbcc"
+}
+```
+
+```json Full Example
+{
+  "asset_id": "vista:mc_98",
+  "color": "0xff10d3c2",
+  "sound": "minecraft:music.game",
+  "sound_duration": 3600,
+  "comparator_output": 9
+}
+```
+</CodeGroup>
+
+### Field Descriptions
+
+#### `asset_id` (Required)
+- **Type**: String (Resource Location)
+- **Description**: References the video asset to display on the TV
+- **Format**: `namespace:path`
+- **Example**: `"vista:bounce"`, `"my_pack:custom_video"`
+
+<Note>
+The asset_id must match the filename of your video asset (without extension). See [Video Assets](#video-assets) for details.
+</Note>
+
+#### `color` (Required)
+- **Type**: String (Hexadecimal Color)
+- **Description**: The display color of the cassette tape item
+- **Format**: `"0xAARRGGBB"` (AA = alpha, RR = red, GG = green, BB = blue)
+- **Example**: `"0xfff8ff00"` (bright yellow)
+
+<Tip>
+Use alpha value `0xff` for fully opaque colors. Lower values create transparency effects.
+</Tip>
+
+#### `sound` (Optional)
+- **Type**: String (Sound Event)
+- **Description**: Sound to play when the cassette is in a powered TV
+- **Format**: Valid Minecraft sound event ID
+- **Example**: `"minecraft:music.game"`, `"minecraft:ambient.cave"`
+
+<Warning>
+If you specify a `sound`, you **must** also include `sound_duration`. Cassettes with sound but no duration will fail to load.
+</Warning>
+
+#### `sound_duration` (Optional)
+- **Type**: Integer (Positive)
+- **Description**: Duration of the sound in ticks (20 ticks = 1 second)
+- **Required if**: `sound` is specified
+- **Example**: `3600` (3 minutes), `1200` (1 minute)
+
+```java
+// The sound loops automatically when it reaches the end
+// Calculate ticks: seconds × 20
+int durationTicks = 60 * 20;  // 1 minute
+```
+
+#### `comparator_output` (Optional)
+- **Type**: Integer (Range: 0-15)
+- **Description**: Redstone comparator signal strength when cassette is in a TV
+- **Default**: `1`
+- **Range**: `0` to `15`
+- **Example**: `9`, `15`
+
+<Tip>
+Use different comparator outputs to create redstone circuits that detect specific cassettes. For example, set rare cassettes to output 15 for special effects.
+</Tip>
+
+## Complete Examples
+
+### Example: Simple Video Cassette
+
+```json skeleton.json
+{
+  "color": "0xffffdbbd",
+  "asset_id": "vista:skeleton"
+}
+```
+
+This creates a basic cassette with no sound, default comparator output (1), and a cream/beige color.
+
+### Example: Music Video Cassette
+
+```json bounce.json
+{
+  "color": "0xfff8ff00",
+  "asset_id": "vista:bounce",
+  "comparator_output": 11
+}
+```
+
+This cassette has a bright yellow color and outputs a comparator signal of 11.
+
+### Example: Nature Documentary
+
+```json nature.json
+{
+  "color": "0xff377421",
+  "asset_id": "vista:nature",
+  "comparator_output": 7
+}
+```
+
+This cassette uses a forest green color and outputs signal strength 7.
+
+### Example: With Sound
+
+```json with_sound.json
+{
+  "color": "0xff10d3c2",
+  "asset_id": "my_namespace:music_video",
+  "sound": "minecraft:music.creative",
+  "sound_duration": 2400,
+  "comparator_output": 12
+}
+```
+
+This cassette plays Minecraft's creative music for 2 minutes (2400 ticks).
+
+## Video Assets
+
+The `asset_id` field references video content that must be provided separately. Vista supports:
+
+### Asset Types
+
+1. **Animated Textures**: PNG files with Minecraft's animation format
+2. **Image Sequences**: Multiple frames in a specific format
+3. **Live Feeds**: Special cassettes linked to camera blocks (see [Live Feeds](/guides/live-feeds))
+
+### Asset Location
+
+Video assets should be placed in your resource pack:
+
+```
+resourcepack/
+└── assets/
+    └── my_namespace/
+        └── textures/
+            └── vista/
+                └── video/
+                    └── my_video.png
+```
+
+<Note>
+The exact asset format and placement depends on your Vista version and may require additional configuration. Check Vista's resource pack documentation for specifics.
+</Note>
+
+## Color Reference
+
+Here are some common color values you can use:
+
+<Tabs>
+  <Tab title="Bright Colors">
+    ```json
+    "0xffff0000"  // Red
+    "0xff00ff00"  // Green
+    "0xff0000ff"  // Blue
+    "0xffffff00"  // Yellow
+    "0xffff00ff"  // Magenta
+    "0xff00ffff"  // Cyan
+    ```
+  </Tab>
+  
+  <Tab title="Pastel Colors">
+    ```json
+    "0xffffb3ba"  // Light Pink
+    "0xffbae1ff"  // Light Blue
+    "0xffffdfba"  // Light Orange
+    "0xffbaffc9"  // Light Green
+    "0xffe0BBE4"  // Light Purple
+    ```
+  </Tab>
+  
+  <Tab title="Material Colors">
+    ```json
+    "0xff8b4513"  // Brown (Wood)
+    "0xff808080"  // Gray (Stone)
+    "0xff377421"  // Dark Green (Nature)
+    "0xff10d3c2"  // Teal (Tech)
+    "0xffffdbbd"  // Beige (Paper)
+    ```
+  </Tab>
+</Tabs>
+
+## Testing Your Cassette
+
+<Steps>
+  <Step title="Load the Datapack">
+    Place your datapack in the world's `datapacks` folder and reload with `/reload`.
+  </Step>
+
+  <Step title="Give Yourself the Cassette">
+    Use the command:
+    ```
+    /give @s vista:cassette_tape[vista:cassette_tape_type="my_namespace:my_cassette"]
+    ```
+  </Step>
+
+  <Step title="Test in a TV">
+    Place a TV, power it, and insert your cassette to see the video and test functionality.
+  </Step>
+
+  <Step title="Test Comparator Output">
+    Place a comparator next to the TV to verify the signal strength is correct.
+  </Step>
+</Steps>
+
+## Validation and Errors
+
+Vista validates cassette definitions when loading. Common errors:
+
+### Sound Without Duration
+
+```json
+// ❌ This will FAIL
+{
+  "asset_id": "vista:video",
+  "color": "0xffffffff",
+  "sound": "minecraft:music.game"
+  // Missing sound_duration!
+}
+```
+
+**Error**: "Cassette tapes with sound events must have a sound duration"
+
+**Fix**: Add the `sound_duration` field:
+
+```json
+// ✅ This will work
+{
+  "asset_id": "vista:video",
+  "color": "0xffffffff",
+  "sound": "minecraft:music.game",
+  "sound_duration": 2400
+}
+```
+
+### Invalid Comparator Output
+
+```json
+// ❌ Out of range
+{
+  "comparator_output": 20  // Maximum is 15
+}
+```
+
+**Fix**: Use a value between 0 and 15.
+
+## Advanced Usage
+
+### Creating Collectible Sets
+
+Use comparator outputs to create collectible cassette sets:
+
+```json episode_1.json
+{
+  "asset_id": "my_series:episode_1",
+  "color": "0xff4a90e2",
+  "comparator_output": 1
+}
+```
+
+```json episode_2.json
+{
+  "asset_id": "my_series:episode_2",
+  "color": "0xff4a90e2",
+  "comparator_output": 2
+}
+```
+
+Players can use comparators to detect which episode is playing and trigger different redstone contraptions.
+
+### Matching Colors to Content
+
+Choose colors that reflect the video content:
+
+- **Nature videos**: Green tones (`0xff377421`)
+- **Tech/Sci-fi**: Cyan/blue tones (`0xff10d3c2`)
+- **Comedy**: Bright yellow (`0xfff8ff00`)
+- **Music**: Vibrant colors (`0xffff00ff`)
+- **Documentary**: Neutral tones (`0xffffdbbd`)
+
+## Distribution
+
+To share your custom cassettes:
+
+1. **Datapack**: Bundle the JSON files for server-side distribution
+2. **Resource Pack**: Bundle the video assets for client-side distribution
+3. **Both**: Most setups require both datapack (for definitions) and resource pack (for visuals)
+
+<Warning>
+Players need both the datapack and resource pack to see custom cassettes. The datapack alone will create items, but they won't have video content without the resource pack.
+</Warning>
+
+## See Also
+
+- [Live Feeds](/guides/live-feeds) - Create cassettes that display live camera feeds
+- [Configuration](/guides/configuration) - Configure cassette-related settings
+- [Multi-Block TVs](/guides/multi-block-tvs) - Display your cassettes on larger screens

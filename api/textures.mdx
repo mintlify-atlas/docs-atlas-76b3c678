@@ -1,0 +1,516 @@
+---
+title: 'Texture Management API'
+description: 'Dynamic textures, animation systems, and live feed texture management'
+---
+
+## Overview
+
+Vista's texture system handles dynamic textures for cassette tapes, web content, and live camera feeds. It includes support for GIF animations, sprite strips, and real-time rendered textures.
+
+## LiveFeedTexture
+
+`LiveFeedTexture` (`net.mehvahdjukaar.vista.client.textures.LiveFeedTexture`) manages render-to-texture for viewfinder camera feeds.
+
+### Constructor
+
+```java
+public LiveFeedTexture(
+    ResourceLocation resourceLocation,
+    int size,
+    Consumer<LiveFeedTexture> textureDrawingFunction,
+    UUID id,
+    @Nullable ResourceLocation postFragment
+)
+```
+
+<ParamField path="resourceLocation" type="ResourceLocation" required>
+  The resource location identifier for this texture.
+</ParamField>
+
+<ParamField path="size" type="int" required>
+  Resolution of the render target (width and height in pixels).
+</ParamField>
+
+<ParamField path="textureDrawingFunction" type="Consumer<LiveFeedTexture>" required>
+  Callback function that renders content into this texture.
+</ParamField>
+
+<ParamField path="id" type="UUID" required>
+  UUID associated with the viewfinder/broadcast source.
+</ParamField>
+
+<ParamField path="postFragment" type="ResourceLocation" optional>
+  Optional post-processing shader to apply to the feed.
+</ParamField>
+
+### Key Methods
+
+<CodeGroup>
+```java Reference Tracking
+// Mark texture as referenced this frame
+texture.markReferenced(boolean paused);
+
+// Check if feed is disconnected
+boolean disconnected = texture.isDisconnected();
+texture.setDisconnected(true);
+```
+
+```java Post-Processing
+// Set or change post-processing chain
+boolean changed = texture.setPostChain(
+    VistaMod.res("shaders/post/ntsc_tv.json")
+);
+
+// Apply current post chain
+texture.applyPostChain();
+```
+
+```java State Management
+// Get renderer state (camera position, culling, etc.)
+LevelRendererCameraState state = texture.getRendererState();
+
+// Get associated viewfinder UUID
+UUID uuid = texture.getAssociatedUUID();
+
+// Get overlay state
+CrtOverlay overlay = texture.getOverlay(wantPaused);
+```
+
+```java Cleanup
+// Close and release resources
+texture.close();
+```
+</CodeGroup>
+
+### Overlay System
+
+The overlay system provides visual feedback:
+
+```java CrtOverlay Enum
+public enum CrtOverlay {
+    NONE,           // No overlay
+    PAUSE,          // Paused indicator
+    PAUSE_PLAY,     // Pause with play button
+    DISCONNECT,     // Disconnected indicator
+    LOADING         // Loading indicator
+}
+```
+
+### Reference Tracking
+
+`LiveFeedTexture` uses a sliding window counter to track active references:
+
+```java
+private final SlidingWindowCounter<RefType> references =
+    new SlidingWindowCounter<>(
+        Duration.ofSeconds(3),  // Window duration
+        Duration.ofSeconds(1)   // Bucket size
+    );
+
+public void markReferenced(boolean paused) {
+    references.record(paused ? RefType.PAUSED : RefType.LIVE);
+}
+
+public CrtOverlay getOverlay(boolean wantPaused) {
+    if (isDisconnected()) return CrtOverlay.DISCONNECT;
+    int paused = references.getCount(RefType.LIVE);
+    int live = references.getCount(RefType.PAUSED);
+    // Determine overlay based on reference counts
+}
+```
+
+## AnimatedStripTexture
+
+`AnimatedStripTexture` (`net.mehvahdjukaar.vista.client.textures.AnimatedStripTexture`) handles animated sprite strips and GIF files.
+
+### Constructor
+
+```java
+public AnimatedStripTexture(ResourceLocation location)
+```
+
+<ParamField path="location" type="ResourceLocation" required>
+  File path to the texture (e.g., `vista:textures/cassette_tape/axolotl.gif`).
+</ParamField>
+
+### Loading Process
+
+<CodeGroup>
+```java Load Texture
+@Override
+public void load(ResourceManager resourceManager) throws IOException {
+    SpriteContents spriteContents = loadContent(resourceManager);
+    if (spriteContents == null) return;
+    
+    this.stripData = AnimationStripData.create(spriteContents);
+    
+    NativeImage nativeImage = spriteContents.originalImage;
+    if (!RenderSystem.isOnRenderThreadOrInit()) {
+        RenderSystem.recordRenderCall(() -> this.doLoad(nativeImage));
+    } else {
+        this.doLoad(nativeImage);
+    }
+}
+```
+
+```java Content Loading
+private SpriteContents loadContent(ResourceManager rm) throws FileNotFoundException {
+    Resource resource = rm.getResourceOrThrow(this.fileLocation);
+    SpriteResourceLoader loader = fileLocation.getPath().endsWith(".gif") ?
+        GifPathSpriteSource.GIF_CONTENT_LOADER : RESHAPING_PNG_STRIP_LOADER;
+    return loader.loadSprite(fileLocation, resource);
+}
+```
+</CodeGroup>
+
+### Animation Strip Data
+
+`AnimationStripData` provides frame information:
+
+```java
+public class AnimationStripData {
+    private final int frameWidth;
+    private final int frameHeight;
+    private final int frameCount;
+    private final int atlasWidth;
+    private final int atlasHeight;
+    
+    public static AnimationStripData create(SpriteContents contents);
+    
+    public float getFrameU(int frame);
+    public float getFrameV(int frame);
+    public float getFrameWidth();
+    public float getFrameHeight();
+}
+```
+
+### Texture Reshaping
+
+For large animations exceeding GPU texture limits:
+
+```java Atlas Layout
+private static NativeImage buildTileAtlasFromStrip(
+    NativeImage originalImage,
+    int frameW,
+    int frameH,
+    int frameCount,
+    int maxTextureSize
+) {
+    // Compute optimal layout
+    Vec2i layout = computeAtlasLayout(
+        frameCount, frameW, frameH,
+        maxTextureSize, maxTextureSize
+    );
+    int rows = layout.x();
+    int cols = layout.y();
+    
+    int atlasW = cols * frameW;
+    int atlasH = rows * frameH;
+    
+    NativeImage out = new NativeImage(
+        NativeImage.Format.RGBA, atlasW, atlasH, true
+    );
+    
+    // Copy frames in column-major order
+    for (int i = 0; i < frameCount; i++) {
+        int row = i % rows;
+        int col = i / rows;
+        
+        int xOff = col * frameW;
+        int yOff = row * frameH;
+        
+        originalImage.copyRect(
+            out, 0, i * frameH,
+            xOff, yOff, frameW, frameH,
+            false, false
+        );
+    }
+    
+    return out;
+}
+```
+
+## WebTexture
+
+`WebTexture` (`net.mehvahdjukaar.vista.client.textures.WebTexture`) loads textures from HTTP URLs.
+
+### Constructor
+
+```java
+public WebTexture(
+    @Nullable File cacheLocation,
+    String urlString,
+    ResourceLocation resourceLocation
+)
+```
+
+<ParamField path="cacheLocation" type="File" optional>
+  Optional local cache file path.
+</ParamField>
+
+<ParamField path="urlString" type="String" required>
+  HTTP/HTTPS URL to download the image from.
+</ParamField>
+
+<ParamField path="resourceLocation" type="ResourceLocation" required>
+  Resource location identifier for this texture.
+</ParamField>
+
+### Async Loading
+
+```java
+@Override
+public void load(ResourceManager resourceManager) throws IOException {
+    if (this.future == null) {
+        NativeImage nativeImage;
+        
+        // Try loading from cache first
+        if (this.cachelLocation != null && this.cachelLocation.isFile()) {
+            VistaMod.LOGGER.debug("Loading http texture from local cache ({})",
+                this.cachelLocation);
+            FileInputStream fis = new FileInputStream(this.cachelLocation);
+            nativeImage = readImageFromStream(fis);
+        } else {
+            nativeImage = null;
+        }
+        
+        if (nativeImage != null) {
+            this.onLoaded(nativeImage);
+        } else {
+            // Download asynchronously
+            this.future = CompletableFuture.runAsync(() -> {
+                HttpURLConnection conn = null;
+                try {
+                    conn = (HttpURLConnection) (new URL(this.urlString))
+                        .openConnection(Minecraft.getInstance().getProxy());
+                    conn.setDoInput(true);
+                    conn.setDoOutput(false);
+                    conn.connect();
+                    
+                    if (conn.getResponseCode() / 100 == 2) {
+                        // Success - cache and load
+                        if (this.cachelLocation != null) {
+                            FileUtils.copyInputStreamToFile(
+                                conn.getInputStream(), this.cachelLocation
+                            );
+                        }
+                        NativeImage ni = readImageFromStream(inputStream);
+                        if (ni != null) {
+                            this.onLoaded(ni);
+                        }
+                    }
+                } catch (Exception e) {
+                    VistaMod.LOGGER.error("Couldn't download http texture", e);
+                } finally {
+                    if (conn != null) conn.disconnect();
+                }
+            }, Util.backgroundExecutor());
+        }
+    }
+}
+```
+
+## GIF Support
+
+### GifPathSpriteSource
+
+Handles GIF file loading and conversion to sprite strips:
+
+```java
+public class GifPathSpriteSource {
+    public static final SpriteResourceLoader GIF_CONTENT_LOADER = 
+        (resourceLocation, resource) -> {
+            // Load GIF frames
+            List<NativeImage> frames = loadGifFrames(resource);
+            
+            // Determine frame size
+            int frameW = frames.get(0).getWidth();
+            int frameH = frames.get(0).getHeight();
+            
+            // Create vertical strip or tiled atlas
+            NativeImage strip = createStripFromFrames(frames, frameW, frameH);
+            
+            // Create sprite contents with animation metadata
+            return new SpriteContents(
+                resourceLocation,
+                new FrameSize(frameW, frameH),
+                strip,
+                buildAnimationMetadata(frames)
+            );
+        };
+}
+```
+
+## Texture Manager Classes
+
+### LiveFeedTexturesManager
+
+Manages all active live feed textures:
+
+```java
+public class LiveFeedTexturesManager {
+    private static final Map<UUID, LiveFeedTexture> TEXTURES = new ConcurrentHashMap<>();
+    
+    public static LiveFeedTexture getOrCreate(
+        UUID id,
+        int resolution,
+        @Nullable ResourceLocation postShader
+    );
+    
+    public static void onRenderTickEnd();
+    
+    public static void clear();
+}
+```
+
+### CassetteTexturesManager
+
+Manages cassette tape animation textures:
+
+```java
+public class CassetteTexturesManager {
+    public static final CassetteTexturesManager INSTANCE = new CassetteTexturesManager();
+    
+    public AnimatedStripTexture getTexture(ResourceLocation assetId);
+    
+    public void registerTexture(ResourceLocation id, AnimatedStripTexture texture);
+}
+```
+
+### WebTexturesManager
+
+Manages web-loaded textures:
+
+```java
+public class WebTexturesManager {
+    private static final Map<String, WebTexture> TEXTURES = new HashMap<>();
+    
+    public static WebTexture getOrCreate(String url, @Nullable File cacheLocation);
+}
+```
+
+## Custom Vertex Consumers
+
+### AnimatedStripVertexConsumer
+
+Samples from animated sprite strips:
+
+```java
+public class AnimatedStripVertexConsumer implements VertexConsumer {
+    private final VertexConsumer delegate;
+    private final AnimationStripData stripData;
+    private final int currentFrame;
+    
+    public AnimatedStripVertexConsumer(
+        VertexConsumer delegate,
+        AnimationStripData stripData,
+        int currentFrame
+    );
+    
+    @Override
+    public VertexConsumer uv(float u, float v) {
+        // Remap UVs to current frame
+        float frameU = stripData.getFrameU(currentFrame);
+        float frameV = stripData.getFrameV(currentFrame);
+        float frameW = stripData.getFrameWidth();
+        float frameH = stripData.getFrameHeight();
+        
+        float remappedU = frameU + u * frameW;
+        float remappedV = frameV + v * frameH;
+        
+        return delegate.uv(remappedU, remappedV);
+    }
+}
+```
+
+### TvScreenVertexConsumers
+
+Specialized vertex consumers for TV rendering:
+
+```java
+public class TvScreenVertexConsumers {
+    public static VertexConsumer createForCassette(
+        VertexConsumer delegate,
+        CassetteTape tape,
+        long gameTime
+    );
+    
+    public static VertexConsumer createForLiveFeed(
+        VertexConsumer delegate,
+        LiveFeedTexture texture
+    );
+}
+```
+
+## Example Usage
+
+### Creating a Live Feed Texture
+
+<CodeGroup>
+```java Basic Live Feed
+UUID feedId = viewfinder.getUUID();
+int resolution = 512; // 512x512 pixels
+
+LiveFeedTexture texture = new LiveFeedTexture(
+    VistaMod.res("livefeed/" + feedId),
+    resolution,
+    (tex) -> VistaLevelRenderer.render(tex, viewfinder),
+    feedId,
+    null // No post-processing
+);
+```
+
+```java With Post-Processing
+LiveFeedTexture texture = new LiveFeedTexture(
+    VistaMod.res("livefeed/" + feedId),
+    resolution,
+    (tex) -> VistaLevelRenderer.render(tex, viewfinder),
+    feedId,
+    VistaMod.res("shaders/post/ntsc_tv.json")
+);
+```
+</CodeGroup>
+
+### Loading Animated Textures
+
+```java
+// Load GIF or animation strip
+AnimatedStripTexture texture = new AnimatedStripTexture(
+    ResourceLocation.parse("mymod:textures/cassette_tape/my_animation.gif")
+);
+
+// Register with Minecraft's texture manager
+Minecraft.getInstance().getTextureManager().register(
+    texture.getTextureLocation(),
+    texture
+);
+
+// Get animation data
+AnimationStripData data = texture.getStripData();
+int frameCount = data.getFrameCount();
+int currentFrame = (int) (gameTime % frameCount);
+```
+
+### Downloading Web Textures
+
+```java
+String url = "https://example.com/image.png";
+File cacheFile = new File("./cache/image.png");
+
+WebTexture texture = new WebTexture(
+    cacheFile,
+    url,
+    ResourceLocation.parse("mymod:web/image")
+);
+
+Minecraft.getInstance().getTextureManager().register(
+    texture.getResourceLocation(),
+    texture
+);
+```
+
+## Related APIs
+
+- [Rendering](/api/rendering) - Rendering system that uses these textures
+- [Shaders](/api/shaders) - Post-processing applied to textures
+- [Cassette Tapes](/api/cassette-tapes) - Asset references for animated textures

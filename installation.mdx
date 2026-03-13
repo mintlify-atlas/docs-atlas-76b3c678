@@ -1,0 +1,143 @@
+---
+title: Installation
+description: How to install Vista for Minecraft
+---
+
+## Requirements
+
+Vista is a Minecraft mod that requires:
+
+- **Minecraft Version**: 1.21.1 or higher (supports 1.21.1 - 1.21.2)
+- **Java Version**: Java 21 or higher
+- **Mod Loader**: Fabric or NeoForge
+- **Required Dependency**: Moonlight Lib (version 1.21-2.29.17 or higher)
+
+<Note>
+Vista is built on Moonlight Lib, a library mod that provides common functionality. Make sure to install it alongside Vista.
+</Note>
+
+<Warning>
+If you're using Iris shaders mod, Vista may experience visual issues and degraded performance. This is a known compatibility issue that occurs even with shaders disabled.
+</Warning>
+
+## Download
+
+Vista can be downloaded from:
+
+- **CurseForge**: [Vista on CurseForge](https://www.curseforge.com/minecraft/mc-mods/vista)
+- **Modrinth**: Available as `vista_tv`
+
+## Installation Steps
+
+<Steps>
+  <Step title="Install Java 21">
+    Ensure you have Java 21 or higher installed on your system. You can verify your Java version by running:
+    
+    ```bash
+    java -version
+    ```
+    
+    If you need to install Java 21, download it from [Adoptium](https://adoptium.net/).
+  </Step>
+
+  <Step title="Install Mod Loader">
+    Choose either Fabric or NeoForge as your mod loader:
+
+    <CodeGroup>
+      ```bash Fabric
+      # Download Fabric installer from https://fabricmc.net/use/installer/
+      # Run the installer and select Minecraft 1.21.1
+      # Fabric Loader version 0.16.3 or higher is recommended
+      ```
+
+      ```bash NeoForge
+      # Download NeoForge installer from https://neoforged.net/
+      # Run the installer and select Minecraft 1.21.1
+      # NeoForge version 21.1.219 or higher is recommended
+      ```
+    </CodeGroup>
+  </Step>
+
+  <Step title="Download Moonlight Lib">
+    Vista requires Moonlight Lib as a dependency:
+    
+    - **Minimum version**: 1.21-2.29.17
+    - **Recommended version**: 1.21-2.29.19 or higher
+    
+    Download Moonlight Lib from [CurseForge](https://www.curseforge.com/minecraft/mc-mods/moonlight) or Modrinth.
+  </Step>
+
+  <Step title="Download Vista">
+    Download the Vista mod file (`.jar`) for your mod loader:
+    
+    - Current version: **1.21-3.0.7**
+    - Make sure to download the version matching your mod loader (Fabric or NeoForge)
+  </Step>
+
+  <Step title="Install the Mods">
+    Place both the Vista and Moonlight Lib `.jar` files in your Minecraft mods folder:
+    
+    <CodeGroup>
+      ```plaintext Windows
+      %appdata%\.minecraft\mods\
+      ```
+
+      ```plaintext macOS
+      ~/Library/Application Support/minecraft/mods/
+      ```
+
+      ```plaintext Linux
+      ~/.minecraft/mods/
+      ```
+    </CodeGroup>
+  </Step>
+
+  <Step title="Launch Minecraft">
+    Start Minecraft using your mod loader profile. Vista should appear in your mods list.
+    
+    <Note>
+    On first launch, Vista will create its configuration files in the `config` folder.
+    </Note>
+  </Step>
+</Steps>
+
+## Verifying Installation
+
+To verify that Vista is installed correctly:
+
+1. Launch Minecraft with your mod loader
+2. Go to the Mods menu
+3. Look for "Vista" in the list - it should show version 1.21-3.0.7
+4. In Creative mode, check the Redstone Blocks tab for the Television and Viewfinder blocks
+
+## Optional Dependencies
+
+Vista has optional compatibility with:
+
+- **Supplementaries**: Enhanced integration features
+- **ComputerCraft**: Programmable control for Wave Collector blocks (experimental)
+
+## Troubleshooting
+
+### Mod doesn't load
+
+- Verify you have Java 21 or higher installed
+- Ensure Moonlight Lib is installed (minimum version 1.21-2.29.17)
+- Check that you downloaded the correct version for your mod loader (Fabric vs NeoForge)
+- Check the `logs/latest.log` file for error messages
+
+### Visual issues or poor performance
+
+- If using Iris shaders, try disabling it - Vista has known compatibility issues with Iris
+- Reduce the maximum connected TV size in the config if you have performance issues
+- Check your render distance settings
+
+### Moonlight Lib not found
+
+- Make sure both Vista and Moonlight Lib `.jar` files are in the `mods` folder
+- Verify the Moonlight Lib version is 1.21-2.29.17 or higher
+- Restart Minecraft after adding the mods
+
+## Next Steps
+
+Now that Vista is installed, check out the [Quickstart Guide](/quickstart) to learn how to build your first TV and viewfinder setup!

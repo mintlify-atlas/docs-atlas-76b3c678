@@ -1,0 +1,108 @@
+{
+  "projectType": "general",
+  "projectName": "Vista",
+  "projectDescription": "A Minecraft mod adding advanced camera systems, televisions, and video playback capabilities to your world.",
+  "theme": "aspen",
+  "primaryColor": "#3B82F6",
+  "lightColor": "#60A5FA",
+  "darkColor": "#1E40AF",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Getting Started",
+            "pages": [
+              "introduction",
+              "installation",
+              "quickstart"
+            ]
+          },
+          {
+            "group": "Core Features",
+            "pages": [
+              "features/televisions",
+              "features/viewfinders",
+              "features/cassettes",
+              "features/broadcasting"
+            ]
+          },
+          {
+            "group": "Guides",
+            "pages": [
+              "guides/multi-block-tvs",
+              "guides/creating-cassettes",
+              "guides/live-feeds",
+              "guides/configuration"
+            ]
+          },
+          {
+            "group": "Integration",
+            "pages": [
+              "integration/overview",
+              "integration/computercraft",
+              "integration/supplementaries",
+              "integration/other-mods"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "Core API",
+            "pages": [
+              "api/overview",
+              "api/blocks",
+              "api/block-entities",
+              "api/broadcast-system"
+            ]
+          },
+          {
+            "group": "Data Driven Content",
+            "pages": [
+              "api/cassette-tapes",
+              "api/broadcast-locations"
+            ]
+          },
+          {
+            "group": "Client Rendering",
+            "pages": [
+              "api/rendering",
+              "api/shaders",
+              "api/textures"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "Multi-block television displays with configurable sizes",
+    "Viewfinder blocks for creating camera feeds",
+    "Data-driven cassette tape system for video content",
+    "Live broadcasting system connecting viewfinders to TVs",
+    "Advanced rendering with custom shaders and CRT effects",
+    "Multi-loader support (Fabric and NeoForge)",
+    "Extensive mod integration (ComputerCraft, Supplementaries, and more)",
+    "Enderman interaction mechanics with TV displays"
+  ],
+  "publicApiSurface": [
+    "TVBlock - Multi-block television display",
+    "TVBlockEntity - Television block entity with cassette playback",
+    "ViewFinderBlock - Camera viewfinder block",
+    "ViewFinderBlockEntity - Viewfinder block entity with rotation",
+    "CassetteItem - Cassette tape item",
+    "HollowCassetteItem - Linkable cassette for live feeds",
+    "CassetteTape - Data-driven tape definition registry",
+    "BroadcastManager - System for managing live feed connections",
+    "BroadcastLocationType - Registry for broadcast location types",
+    "IBroadcastSource - Interface for broadcast sources",
+    "ITvCassette - Interface for TV cassette implementations",
+    "VistaLevelRenderer - Custom level rendering for cameras",
+    "AdaptiveUpdateScheduler - Performance optimization for camera updates",
+    "MsaaTarget - Multi-sample anti-aliasing render target"
+  ]
+}
